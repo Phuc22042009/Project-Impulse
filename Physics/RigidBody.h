@@ -2,6 +2,7 @@
 #include <iostream>
 #include "../Math/Vec2.h"
 #define NUM_RIGID_BODIES 1 
+//Git hoat dong
 struct BoxShape 
 {
     float width;
