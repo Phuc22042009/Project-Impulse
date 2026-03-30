@@ -1,6 +1,6 @@
 #pragma once
 #include <iostream>
-#include "../Math/Vec2.h"
+#include "../math/Vec2.h"
 #define NUM_RIGID_BODIES 1 
 
 struct BoxShape 

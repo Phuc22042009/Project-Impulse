@@ -1,5 +1,5 @@
 #pragma once
-#include "../Math/Vec2.h"
+#include "../math/Vec2.h"
 #define NUM_PARTICLES 1
 #include <iostream>
 struct Particle
