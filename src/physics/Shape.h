@@ -1,46 +1,51 @@
 #pragma once
-#include "../math/Vec2.h"
-#include "Math.h"
 #include "../math/MathUtils.h"
-#include "vector"
-enum ShapeType {Polygon};
-struct Shape
-{
-    ShapeType type;
-    std::vector<Vec2> verticles;
-    std::vector<Vec2> normals;
-    
-    static Shape MakeBox(float hw, float hh) 
+   struct  Shape
     {
-        Shape s;
-        s.type = ShapeType::Polygon;
-        s.verticles = {
-            {-hw, -hh},
-            {hw, -hh},
-            {hw, hh},
-            {-hw, hh}
-        };
-        s.ComputeNormals();
-        return s;
-    }
-    static Shape MakePolygon(int sides, float r) {
-        Shape s;
-        s.type = ShapeType::Polygon;
-        for (int i = 0; i < sides; i++) {
-            float angle = 2 * PI * i / sides - PI / 2;
-            s.verticles.push_back(Vec2(r * cos(angle), r * sin(angle)));
+        virtual float ComputeInertia(float mass) = 0;
+    };
+    struct Box : Shape
+    {
+        float width;
+        float height;
+        float ComputeInertia(float mass) override
+        {
+            return mass * (height * height + width * width) / 12;
         }
-        s.ComputeNormals();
-        return s;
-    }
-    private:
-    void ComputeNormals() {
-        normals.clear();
-        int n = (int)verticles.size();
-        for (int i = 0; i < n; i++) {
-            Vec2 edge = verticles[(i + 1) % n] - verticles[i];
+    };
+    struct Circle : Shape
+    {
+        Vec2 center;
+        float radius;
+        float ComputeInertia(float mass) override
+        {
+            return PI * radius * radius * mass / 2;
+        }
+    };
+    struct AABB 
+    {
+        Vec2 min;
+        Vec2 max;
+        AABB(Vec2 min, Vec2 max): min(min), max(max) {}
 
-            normals.push_back(edge.Perp().Normalized());
-        }
-    }
-};
+        
+    };
+    bool Intersects(const AABB& a, const AABB& b) 
+    {
+        return !(a.max.x < b.min.x || a.min.x > b.max.x || a.max.y < b.min.y || a.min.y > b.max.y);
+    };
+    bool CircleIntersects(const Circle& c1, const Circle& c2) 
+    {
+        Vec2 delta = c1.center - c2.center;
+        float distanceSquared = delta.LenSq();
+        float radiusSum = c1.radius + c2.radius;
+        return distanceSquared <= radiusSum * radiusSum;
+    };
+    bool AABBvsCircle(const AABB& box, const Circle& circle) 
+    {
+        float closestX = std::clamp(circle.center.x, box.min.x, box.max.x);
+        float closestY = std::clamp(circle.center.y, box.min.y, box.max.y);
+        Vec2 closestPoint(closestX, closestY);
+        Vec2 delta = circle.center - closestPoint;
+        return delta.LenSq() <= circle.radius * circle.radius;
+    };

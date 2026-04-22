@@ -1,5 +1,5 @@
 #pragma once
-#include <math.h>
+#include <cmath>
 struct Vec2 
 {
     float x;
@@ -13,11 +13,7 @@ struct Vec2
     }
     float Len() const 
     { 
-        return std::sqrt(LenSq()); 
-    }
-    float DotProduct(Vec2 a, Vec2 b)
-    {
-        return a.x * b.x + a.y * b.y;
+        return sqrt(LenSq()); 
     }
     Vec2 operator+(const Vec2& other) const
     {
@@ -40,9 +36,17 @@ struct Vec2
         if (l < 1e-8f) return {0, 0};
         return {x / l, y / l};
     }
-     Vec2 Rotated(float angle) const {
-        float c = std::cos(angle);
-        float s = std::sin(angle);
+    Vec2 Rotated(float angle) const {
+        float c = cos(angle);
+        float s = sin(angle);
         return { x * c - y * s,  x * s + y * c };
     }
 };
+float DotProduct(Vec2 a, Vec2 b)
+{
+    return a.x * b.x + a.y * b.y;
+}
+float CrossProduct(Vec2 a, Vec2 b)
+{
+    return a.x * b.y - a.y * b.x;
+}
