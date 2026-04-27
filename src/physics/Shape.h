@@ -30,22 +30,4 @@
 
         
     };
-    bool Intersects(const AABB& a, const AABB& b) 
-    {
-        return !(a.max.x < b.min.x || a.min.x > b.max.x || a.max.y < b.min.y || a.min.y > b.max.y);
-    };
-    bool CircleIntersects(const Circle& c1, const Circle& c2) 
-    {
-        Vec2 delta = c1.center - c2.center;
-        float distanceSquared = delta.LenSq();
-        float radiusSum = c1.radius + c2.radius;
-        return distanceSquared <= radiusSum * radiusSum;
-    };
-    bool AABBvsCircle(const AABB& box, const Circle& circle) 
-    {
-        float closestX = std::clamp(circle.center.x, box.min.x, box.max.x);
-        float closestY = std::clamp(circle.center.y, box.min.y, box.max.y);
-        Vec2 closestPoint(closestX, closestY);
-        Vec2 delta = circle.center - closestPoint;
-        return delta.LenSq() <= circle.radius * circle.radius;
-    };
+    
