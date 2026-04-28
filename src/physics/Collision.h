@@ -57,6 +57,37 @@ Manifold AABBvsCircleManifold(const AABB& box, const Circle& circle)
 
         float distanceSquared = delta.LenSq();
 
+         if(distanceSquared < 1e-8f) 
+        {
+            float distToLeft = std::abs(circle.center.x - box.min.x);
+            float distToRight = std::abs(circle.center.x - box.max.x);
+            float distToBottom = std::abs(circle.center.y - box.min.y);
+            float distToTop = std::abs(circle.center.y - box.max.y);
+
+            float minDist = distToLeft;
+            Vec2 normal = Vec2(-1, 0);
+            if (minDist > distToRight) 
+            {
+                minDist = distToRight;
+                normal = Vec2(1, 0);
+            }
+            if(minDist > distToBottom) 
+            {
+                minDist = distToBottom;
+                normal = Vec2(0, -1);
+            }
+            if(minDist > distToTop) 
+            {
+                minDist = distToTop;
+                normal = Vec2(0, 1);
+            }
+
+            manifold.colliding = true;
+            manifold.penetration = circle.radius + minDist;
+            manifold.normal = normal;
+            return manifold;
+        }
+
         if (distanceSquared < circle.radius * circle.radius) 
         {
             float distance = sqrt(distanceSquared);
