@@ -25,6 +25,7 @@ struct Manifold
         bool colliding;
         Vec2 normal;
         float penetration;
+        Vec2 contactPoint;
     };
 Manifold GetCircleManifold(const Circle& a, const Circle& b) 
     {
@@ -41,7 +42,9 @@ Manifold GetCircleManifold(const Circle& a, const Circle& b)
                 manifold.colliding = true;
                 manifold.penetration = radiusSum - distance;
                 manifold.normal = distance > 1e-8f ? delta / distance : Vec2(1, 0); 
+                manifold.contactPoint = b.center + manifold.normal * b.radius;
         }
+        
         return manifold;
     };
 Manifold AABBvsCircleManifold(const AABB& box, const Circle& circle) 
@@ -66,24 +69,28 @@ Manifold AABBvsCircleManifold(const AABB& box, const Circle& circle)
 
             float minDist = distToLeft;
             Vec2 normal = Vec2(-1, 0);
+            manifold.contactPoint = Vec2(box.min.x, circle.center.y);
             if (minDist > distToRight) 
             {
                 minDist = distToRight;
                 normal = Vec2(1, 0);
+                manifold.contactPoint = Vec2(box.max.x, circle.center.y);
             }
             if(minDist > distToBottom) 
             {
                 minDist = distToBottom;
                 normal = Vec2(0, -1);
+                manifold.contactPoint = Vec2(circle.center.x, box.min.y);
             }
             if(minDist > distToTop) 
             {
                 minDist = distToTop;
                 normal = Vec2(0, 1);
+                manifold.contactPoint = Vec2(circle.center.x, box.max.y);
             }
 
             manifold.colliding = true;
-            manifold.penetration = circle.radius + minDist;
+            manifold.penetration = circle.radius - minDist;
             manifold.normal = normal;
             return manifold;
         }
@@ -94,6 +101,7 @@ Manifold AABBvsCircleManifold(const AABB& box, const Circle& circle)
             manifold.colliding = true;
             manifold.penetration = circle.radius - distance;
             manifold.normal = distance > 1e-8f ? delta / distance : Vec2(0, 1); 
+            manifold.contactPoint = closestPoint;
         }
         return manifold;
     };
@@ -125,6 +133,7 @@ Manifold AABBvsAABBManifold(const AABB& a, const AABB& b)
                 manifold.penetration = overlapY;
                 manifold.normal = (centerAtoCenterB.y < 0) ? Vec2(0, -1) : Vec2(0, 1);
             }
+            manifold.contactPoint = centerA + Vec2(manifold.normal.x * halfExtentsA.x, manifold.normal.y * halfExtentsA.y);
         }
         return manifold;
     };
