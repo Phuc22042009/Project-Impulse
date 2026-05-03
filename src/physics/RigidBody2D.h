@@ -17,7 +17,8 @@
         float invMass;
         float inertia;
         float invInertia;
-
+        float restitution;
+        float staticFriction;
         RigidBody2D(float mass, Shape* shape): mass(mass), invMass(0), position(), force(), velocity(), torque(0), shape(shape)
         {
             invMass = (mass == 0) ? 0 : 1/mass;

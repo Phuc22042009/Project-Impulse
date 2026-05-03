@@ -1,6 +1,7 @@
 #pragma once
 #include "shape.h"
 #include "../math/Vec2.h"
+#include "../physics/RigidBody2D.h"
 bool Intersects(const AABB& a, const AABB& b) 
     {
         return !(a.max.x < b.min.x || a.min.x > b.max.x || a.max.y < b.min.y || a.min.y > b.max.y);
@@ -137,4 +138,57 @@ Manifold AABBvsAABBManifold(const AABB& a, const AABB& b)
         }
         return manifold;
     };
-    
+void ResolveCollision(RigidBody2D& a, RigidBody2D& b, const Manifold& manifold)
+    {
+        Vec2 rA = manifold.contactPoint - a.position;
+        Vec2 rB = manifold.contactPoint - b.position;
+        Vec2 vContactA = a.velocity + Vec2(-a.angularVelocity * rA.y, a.angularVelocity * rA.x);
+        Vec2 vContactB = b.velocity + Vec2(-b.angularVelocity * rB.y, b.angularVelocity * rB.x);
+        Vec2 relativeVelocity = vContactA - vContactB;
+
+        float vReldotN = DotProduct(relativeVelocity, manifold.normal);
+        if (vReldotN >= 0) return;
+
+        float e = std::min(a.restitution, b.restitution);
+        float denominator = a.invMass + b.invMass + CrossProduct(rA, manifold.normal) * a.invInertia * CrossProduct(rA, manifold.normal) + CrossProduct(rB, manifold.normal) * b.invInertia * CrossProduct(rB, manifold.normal);
+        float j = -(1 + e) * vReldotN / denominator; 
+
+        a.velocity = a.velocity + manifold.normal * (j * a.invMass);
+        a.angularVelocity += CrossProduct(rA, manifold.normal * j) * a.invInertia;
+
+        b.velocity = b.velocity - manifold.normal * (j * b.invMass);
+        b.angularVelocity -= CrossProduct(rB, manifold.normal * j) * b.invInertia;
+
+        Vec2 tangent = relativeVelocity - manifold.normal * vReldotN;
+        if (tangent.Len() < 1e-8f) return;
+        Vec2 tangentDir = tangent / tangent.Len();
+
+        float jtDenominator = a.invMass + b.invMass + CrossProduct(rA, tangentDir) * a.invInertia * CrossProduct(rA, tangentDir) + CrossProduct(rB, tangentDir) * b.invInertia * CrossProduct(rB, tangentDir);
+        if (jtDenominator < 1e-8f) return;
+        float jt = -DotProduct(relativeVelocity, tangentDir) / jtDenominator;
+        float mu = (a.staticFriction + b.staticFriction) * 0.5f;
+
+        if (std::abs(jt) < j * mu) 
+        {
+            a.velocity = a.velocity + tangentDir * (jt * a.invMass);
+            a.angularVelocity += CrossProduct(rA, tangentDir * jt) * a.invInertia;
+            b.velocity = b.velocity - tangentDir * (jt * b.invMass);
+            b.angularVelocity -= CrossProduct(rB, tangentDir * jt) * b.invInertia;
+        }
+        else 
+        {
+            a.velocity = a.velocity + tangentDir * (-j * mu * a.invMass);
+            a.angularVelocity += CrossProduct(rA, tangentDir * -j * mu) * a.invInertia;
+            b.velocity = b.velocity - tangentDir * (-j * mu * b.invMass);
+            b.angularVelocity -= CrossProduct(rB, tangentDir   * -j * mu) * b.invInertia;
+        }
+    };
+void PositionalCorrection(RigidBody2D& a, RigidBody2D& b, const Manifold& manifold)
+    {
+        const float percent = 0.2f; 
+        const float slop = 0.01f; 
+        float correctionMagnitude = std::max(manifold.penetration - slop, 0.0f) / (a.invMass + b.invMass) * percent;
+        Vec2 correction = manifold.normal * correctionMagnitude;
+        a.position = a.position + correction * a.invMass;
+        b.position = b.position - correction * b.invMass;
+    }
