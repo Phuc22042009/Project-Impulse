@@ -1,7 +1,7 @@
 #include "../physics/RigidBody2D.h"
 #include "Collision.h"
 #include "../math/Vec2.h"
-
+#include <vector>
 struct ContactConstraint
     {
         RigidBody2D* bodyA;
@@ -48,13 +48,13 @@ void ResolveContactConstraint(ContactConstraint& constraint, float dt)
         Vec2 tangent = vRel - constraint.normal * vRelDotN;
         if (tangent.Len() < 1e-8f) return;
         Vec2 tangentDir = tangent / tangent.Len();
-        float frictionDenom = a.invMass + b.invMass + CrossProduct(constraint.rA, tangentDir) * a. invInertia * CrossProduct(constraint.rB, tangentDir) * b.invInertia;
+        float frictionDenom = a.invMass + b.invMass + CrossProduct(constraint.rA, tangentDir) * a. invInertia * CrossProduct(constraint.rA, tangentDir) + CrossProduct(constraint.rB, tangentDir) * b.invInertia * CrossProduct(constraint.rB, tangentDir);
         float jt = -DotProduct(vRel, tangentDir) / frictionDenom;
 
         float mu = (a.staticFriction + b.staticFriction) * 0.5f;
         float maxFriction = mu * constraint.accumulatedNormalImpulse;
         float oldAccumulatedFrictionImpulse = constraint.accumulatedFrictionImpulse;
-        constraint.accumulatedFrictionImpulse = std::clamp(oldAccumulatedNormalImpulse + jt, -maxFriction, maxFriction);
+        constraint.accumulatedFrictionImpulse = std::clamp(oldAccumulatedFrictionImpulse + jt, -maxFriction, maxFriction);
         float actualFrictionLambda = constraint.accumulatedFrictionImpulse - oldAccumulatedFrictionImpulse;
 
         Vec2 frictionImpulse = tangentDir * actualFrictionLambda;
@@ -62,4 +62,30 @@ void ResolveContactConstraint(ContactConstraint& constraint, float dt)
         a.angularVelocity += CrossProduct(constraint.rA, frictionImpulse) * a.invInertia;
         b.velocity = b.velocity - frictionImpulse * b.invMass;
         b.angularVelocity -= CrossProduct(constraint.rB, frictionImpulse) * b.invInertia;
+    }
+
+void SolveConstraints(std::vector<ContactConstraint>& constraints, float dt)
+    {
+        const int iterations = 10;
+        for (int i = 0; i < iterations; ++i) 
+        {
+            for (ContactConstraint& constraint : constraints) 
+            {
+                ResolveContactConstraint(constraint, dt);
+            }
+        }
+    }
+ContactConstraint GenerateContactConstraint(const Manifold& manifold, RigidBody2D& a, RigidBody2D& b)
+    {
+        ContactConstraint constraint;
+        constraint.bodyA = &a;
+        constraint.bodyB = &b;
+        constraint.normal = manifold.normal;
+        constraint.contactPoint = manifold.contactPoint;
+        constraint.penetration = manifold.penetration;
+        constraint.rA = manifold.contactPoint - a.position;
+        constraint.rB = manifold.contactPoint - b.position;
+        constraint.accumulatedNormalImpulse = 0;
+        constraint.accumulatedFrictionImpulse = 0;
+        return constraint;
     }
