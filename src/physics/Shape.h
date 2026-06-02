@@ -1,6 +1,7 @@
 #pragma once
 #include "../math/MathUtils.h"
-   struct  Shape
+#include "../math/Vec2.h"
+   struct Shape
     {
         virtual float ComputeInertia(float mass) = 0;
     };
@@ -19,7 +20,7 @@
         float radius;
         float ComputeInertia(float mass) override
         {
-            return PI * radius * radius * mass / 2;
+            return radius * radius * mass / 2;
         }
     };
     struct AABB 
@@ -27,7 +28,5 @@
         Vec2 min;
         Vec2 max;
         AABB(Vec2 min, Vec2 max): min(min), max(max) {}
-
-        
     };
     
