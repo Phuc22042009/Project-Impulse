@@ -4,6 +4,7 @@
    struct Shape
     {
         virtual float ComputeInertia(float mass) = 0;
+        virtual ~Shape() = default;
     };
     struct Box : Shape
     {

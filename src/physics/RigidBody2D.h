@@ -9,6 +9,9 @@
         Vec2 force;
         Vec2 velocity;
         
+        Vec2 pseudoVelocity;
+        float pseudoAngularVelocity;
+
         float torque;
         float angularVelocity;
         float angle;
@@ -23,7 +26,7 @@
         bool isAwake = true;
         float sleepTimer = 0;
         
-        RigidBody2D(float mass, Shape* shape): mass(mass), invMass(0), position(), force(), velocity(), torque(0), shape(shape), restitution(0.0f), staticFriction(0.5f), angularVelocity(0), angle(0)
+        RigidBody2D(float mass, Shape* shape): mass(mass), invMass(0), position(), force(), velocity(), torque(0), shape(shape), restitution(0.0f), staticFriction(0.5f), angularVelocity(0), pseudoAngularVelocity(0), angle(0)
         {
             invMass = (mass == 0) ? 0 : 1 / mass;
             inertia = shape->ComputeInertia(mass);
@@ -39,22 +42,32 @@
             torque += CrossProduct(centerToForce, force);
             this->force = this->force + force;
         }
-        void Integrate(float dt)
+        void IntegrateVelocities(float dt)
         {
             if(!isAwake) return;
 
             Vec2 acceleration = force * invMass;
             velocity = velocity + acceleration * dt;
 
-            position = position + velocity * dt;   
             float angularAcceleration = torque * invInertia;
             angularVelocity += angularAcceleration * dt;
-            angle += angularVelocity * dt;
+
             force = Vec2();
             torque = 0;
         }
+
+        void IntegratePositions(float dt)
+        {
+            if(!isAwake) return;
+
+            position = position + (velocity + pseudoVelocity) * dt;
+            angle += (angularVelocity + pseudoAngularVelocity) * dt;
+
+            pseudoVelocity = Vec2();
+            pseudoAngularVelocity = 0;
+        }
     };
-void UpdateSleep(RigidBody2D& body, float dt)
+inline void UpdateSleep(RigidBody2D& body, float dt)
 {
 
     if (body.invMass == 0) return;
@@ -63,8 +76,8 @@ void UpdateSleep(RigidBody2D& body, float dt)
     float velocitySq = body.velocity.LenSq();
     float angularVelocitySq = body.angularVelocity * body.angularVelocity;
 
-    const float linearSleepThresholdSq = 0.01f * 0.01f;
-    const float angularSleepThresholdSq = 0.01f * 0.01f;
+    const float linearSleepThresholdSq = 2.0f * 2.0f;
+    const float angularSleepThresholdSq = 0.02f * 0.02f;
 
     if (velocitySq < linearSleepThresholdSq && angularVelocitySq < angularSleepThresholdSq)
     {

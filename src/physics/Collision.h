@@ -10,7 +10,7 @@ struct Manifold
         Vec2 contactPoint[4];
         int contactCount = 0;
     };
-Manifold GetCircleManifold(const Circle& a, const Circle& b) 
+inline Manifold GetCircleManifold(const Circle& a, const Circle& b) 
     {
         Manifold manifold;
         manifold.colliding = false;
@@ -31,7 +31,7 @@ Manifold GetCircleManifold(const Circle& a, const Circle& b)
         
         return manifold;
     };
-Manifold AABBvsCircleManifold(const AABB& box, const Circle& circle) 
+inline Manifold AABBvsCircleManifold(const AABB& box, const Circle& circle) 
     {
         Manifold manifold;
         manifold.colliding = false;
@@ -92,40 +92,7 @@ Manifold AABBvsCircleManifold(const AABB& box, const Circle& circle)
         }
         return manifold;
     };
-Manifold AABBvsAABBManifold(const AABB& a, const AABB& b) 
-    {
-        Manifold manifold;
-        manifold.colliding = false;
-
-        Vec2 centerA = (a.min + a.max) * 0.5f;
-        Vec2 centerB = (b.min + b.max) * 0.5f;
-
-        Vec2 centerAtoCenterB = centerB - centerA;
-
-        Vec2 halfExtentsA = (a.max - a.min) * 0.5f;
-        Vec2 halfExtentsB = (b.max - b.min) * 0.5f;
-
-        float overlapX = halfExtentsA.x + halfExtentsB.x - std::abs(centerAtoCenterB.x);
-        float overlapY = halfExtentsA.y + halfExtentsB.y - std::abs(centerAtoCenterB.y);
-        if (overlapX > 0 && overlapY > 0) 
-        {
-            manifold.colliding = true;
-            if (overlapX < overlapY) 
-            {
-                manifold.penetration = overlapX;
-                manifold.normal = (centerAtoCenterB.x > 0) ? Vec2(-1, 0) : Vec2(1, 0);
-            } 
-            else 
-            {
-                manifold.penetration = overlapY;
-                manifold.normal = (centerAtoCenterB.y > 0) ? Vec2(0, -1) : Vec2(0, 1);
-            }
-            manifold.contactPoint[0] = centerA + Vec2(manifold.normal.x * halfExtentsA.x, manifold.normal.y * halfExtentsA.y);
-            manifold.contactCount = 1;
-        }
-        return manifold;
-    };
-void GetVertices(const RigidBody2D& body, const Box& box, Vec2 vertices[4]) 
+inline void GetVertices(const RigidBody2D& body, const Box& box, Vec2 vertices[4]) 
     {
         float hw = box.width * 0.5f;
         float hh = box.height * 0.5f;
@@ -143,7 +110,7 @@ void GetVertices(const RigidBody2D& body, const Box& box, Vec2 vertices[4])
             vertices[i] = body.position + Vec2(localVertices[i].x * cos - localVertices[i].y * sin, localVertices[i].x * sin + localVertices[i].y * cos);
         }
     }
-void ProjectOBB(const Vec2 vertices[4], const Vec2& axis, float& min, float& max) 
+inline void ProjectOBB(const Vec2 vertices[4], const Vec2& axis, float& min, float& max) 
     {
         min = max = DotProduct(vertices[0], axis);
         for (int i = 1; i < 4; ++i) 
@@ -153,7 +120,7 @@ void ProjectOBB(const Vec2 vertices[4], const Vec2& axis, float& min, float& max
             if (projection > max) max = projection;
         }
     }
-float TestAxis(const Vec2 verticesA[4], const Vec2 verticesB[4], const Vec2& axis) 
+inline float TestAxis(const Vec2 verticesA[4], const Vec2 verticesB[4], const Vec2& axis) 
     {
         float minA, maxA, minB, maxB;
         ProjectOBB(verticesA, axis, minA, maxA);
@@ -162,7 +129,7 @@ float TestAxis(const Vec2 verticesA[4], const Vec2 verticesB[4], const Vec2& axi
         float overlap = std::min(maxA, maxB) - std::max(minA, minB);
         return overlap;
     }
-Vec2 FindContactPoint(const Vec2 verticesB[4], const RigidBody2D& bodyA, const Box& boxA)
+inline Vec2 FindContactPoint(const Vec2 verticesB[4], const RigidBody2D& bodyA, const Box& boxA)
     {
         Vec2 contactPoint;
         float minDist = std::numeric_limits<float>::max();
@@ -210,7 +177,7 @@ Vec2 FindContactPoint(const Vec2 verticesB[4], const RigidBody2D& bodyA, const B
         }
         return contactPoint;
     }
-int FindContactPoints(const Vec2 verticlesB[4], const RigidBody2D& bodyA, const Box& boxA, Vec2 contactPoints[2]) 
+inline int FindContactPoints(const Vec2 verticlesB[4], const RigidBody2D& bodyA, const Box& boxA, Vec2 contactPoints[2]) 
     {
         float cosA = std::cos(bodyA.angle);
         float sinA = std::sin(bodyA.angle);
@@ -233,7 +200,7 @@ int FindContactPoints(const Vec2 verticlesB[4], const RigidBody2D& bodyA, const 
         }
         return count;
     }
-Manifold OBBvsOBBManifold(const RigidBody2D& bodyA, const Box& boxA, const RigidBody2D& bodyB, const Box& boxB) 
+inline Manifold OBBvsOBBManifold(const RigidBody2D& bodyA, const Box& boxA, const RigidBody2D& bodyB, const Box& boxB) 
     {
         Manifold manifold;
         manifold.colliding = false;
@@ -289,7 +256,7 @@ Manifold OBBvsOBBManifold(const RigidBody2D& bodyA, const Box& boxA, const Rigid
         for (int i = 0; i < countAB && totalCount < 4; i++)
             allPoints[totalCount++] = pointsAB[i];
 
-        if (totalCount == 0) 
+        if (totalCount == 0)
         {
             manifold.contactPoint[0] = FindContactPoint(verticesB, bodyA, boxA);
             manifold.contactCount = 1;
@@ -302,7 +269,64 @@ Manifold OBBvsOBBManifold(const RigidBody2D& bodyA, const Box& boxA, const Rigid
         }
         return manifold;
     }
-Manifold GetManifold(RigidBody2D& a, RigidBody2D& b)
+inline Manifold OBBvsCircleManifold(const RigidBody2D& bodyA, const Box& boxA, const RigidBody2D& bodyB, const Circle& circleB) 
+    {
+        Manifold manifold;
+        manifold.colliding = false;
+
+        float cosA = std::cos(bodyA.angle);
+        float sinA = std::sin(bodyA.angle);
+
+        Vec2 axisX = Vec2(cosA, sinA);
+        Vec2 axisY = Vec2(-sinA, cosA);
+
+        Vec2 d = circleB.center - bodyA.position;
+
+        float localX = DotProduct(d, axisX);
+        float localY = DotProduct(d, axisY);
+
+        float hw = boxA.width * 0.5f;
+        float hh = boxA.height * 0.5f;
+
+        float clampedX = std::clamp(localX, -hw, hw);
+        float clampedY = std::clamp(localY, -hh, hh);
+
+        Vec2 closestPoint = bodyA.position + axisX * clampedX + axisY * clampedY;
+        Vec2 delta = circleB.center - closestPoint;
+        float distSq = delta.LenSq();
+        if (distSq < 1e-8f)
+        {
+            float overlapX = hw - std::abs(localX);
+            float overlapY = hh - std::abs(localY);
+
+            if (overlapX < overlapY) 
+            {
+                manifold.penetration = circleB.radius + overlapX;
+                manifold.normal = (localX > 0) ? axisX : axisX * -1.0f;
+            } 
+            else 
+            {
+                manifold.penetration = circleB.radius + overlapY;
+                manifold.normal = (localY > 0) ? axisY : axisY * -1.0f;
+            }
+            manifold.colliding = true;
+            manifold.contactPoint[0] = closestPoint;
+            manifold.contactCount = 1;
+            return manifold;
+        }
+
+        if (distSq < circleB.radius * circleB.radius) 
+        {
+            float distance = sqrt(distSq);
+            manifold.colliding = true;
+            manifold.penetration = circleB.radius - distance;
+            manifold.normal = distance > 1e-8f ? delta / distance : Vec2(0, 1); 
+            manifold.contactPoint[0] = closestPoint;
+            manifold.contactCount = 1;
+        }
+        return manifold;
+    }
+inline Manifold GetManifold(RigidBody2D& a, RigidBody2D& b)
 {
     Box* boxA  = dynamic_cast<Box*>(a.shape);
     Box* boxB  = dynamic_cast<Box*>(b.shape);
@@ -325,19 +349,19 @@ Manifold GetManifold(RigidBody2D& a, RigidBody2D& b)
     {
         AABB aabbA(a.position - Vec2(boxA->width*0.5f, boxA->height*0.5f), a.position + Vec2(boxA->width*0.5f, boxA->height*0.5f));
         circB->center = b.position;
-        return AABBvsCircleManifold(aabbA, *circB);
+        return OBBvsCircleManifold(a, *boxA, b, *circB);
     }
 
     if (circA && boxB)
     {
-        AABB aabbB(b.position - Vec2(boxB->width*0.5f, boxB->height*0.5f), b.position + Vec2(boxB->width*0.5f, boxB->height*0.5f));
         circA->center = a.position;
-        Manifold m = AABBvsCircleManifold(aabbB, *circA);
-        m.normal = m.normal * -1.0f;
-        return m;
+        Manifold manifold = OBBvsCircleManifold(b, *boxB, a, *circA);
+        manifold.normal = manifold.normal * -1.0f;
+        return manifold;
     }
 
-    Manifold empty; empty.colliding = false;
+    Manifold empty; 
+    empty.colliding = false;
     return empty;
 }
 

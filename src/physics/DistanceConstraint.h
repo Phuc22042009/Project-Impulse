@@ -9,7 +9,7 @@ struct DistanceConstraint
     float restLength;
     float accumulatedImpulse;
 };
-void SolveDistanceConstraint(const DistanceConstraint& constraint, float dt)
+inline void SolveDistanceConstraint(DistanceConstraint& constraint, float dt)
 {
     Vec2 d = constraint.bodyB->position - constraint.bodyA->position;
     float currentLength = d.Len();

@@ -15,9 +15,13 @@ struct ContactConstraint
         float penetration;
         float accumulatedNormalImpulse;
         float accumulatedFrictionImpulse;
+
+        float accumulatedPseudoImpulse = 0.0f;
+        float pseudoBias = 0.0f;
+
         float bias;
     };
-void WarmStart(ContactConstraint& constraint)
+inline void WarmStart(ContactConstraint& constraint)
     {
         RigidBody2D& a = *constraint.bodyA;
         RigidBody2D& b = *constraint.bodyB;
@@ -34,7 +38,7 @@ void WarmStart(ContactConstraint& constraint)
         b.velocity = b.velocity - totalImpulse * b.invMass;
         b.angularVelocity -= CrossProduct(constraint.rB, totalImpulse) * b.invInertia;
     }
-void MatchAndWarmStart(std::vector<ContactConstraint>& constraints, const std::vector<ContactConstraint>& previousConstraints)
+inline void MatchAndWarmStart(std::vector<ContactConstraint>& constraints, const std::vector<ContactConstraint>& previousConstraints)
     {
         const float matchDistanceSq = 4.0f * 4.0f;
         for (ContactConstraint& constraint : constraints) 
@@ -57,19 +61,22 @@ void MatchAndWarmStart(std::vector<ContactConstraint>& constraints, const std::v
                 }
                 else if (constraint.bodyA == prev.bodyB && constraint.bodyB == prev.bodyA)
                 {
-                    constraint.accumulatedNormalImpulse = prev.accumulatedNormalImpulse;
-                    float tangentDot = DotProduct(constraint.tangent, prev.tangent);
-                    if (tangentDot > 0.0f)
-                        constraint.accumulatedFrictionImpulse = -prev.accumulatedFrictionImpulse;
-                    else
-                        constraint.accumulatedFrictionImpulse = prev.accumulatedFrictionImpulse;
-                    WarmStart(constraint);
-                    break;
+                    if ((constraint.contactPoint - prev.contactPoint).LenSq() < matchDistanceSq)
+                    {
+                        constraint.accumulatedNormalImpulse = prev.accumulatedNormalImpulse;
+                        float tangentDot = DotProduct(constraint.tangent, prev.tangent);
+                        if (tangentDot > 0.0f)
+                            constraint.accumulatedFrictionImpulse = -prev.accumulatedFrictionImpulse;
+                        else
+                            constraint.accumulatedFrictionImpulse = prev.accumulatedFrictionImpulse;
+                        WarmStart(constraint);
+                        break;
+                    }
                 }
             }
         }
     }  
-ContactConstraint GenerateContactConstraint(const Manifold& manifold, int pointIndex, RigidBody2D& a, RigidBody2D& b)
+inline ContactConstraint GenerateContactConstraint(const Manifold& manifold, int pointIndex, RigidBody2D& a, RigidBody2D& b, float dt)
     {
         if (!a.isAwake) {a.isAwake = true, a.sleepTimer = 0;}
         if (!b.isAwake) {b.isAwake = true, b.sleepTimer = 0;}
@@ -85,11 +92,21 @@ ContactConstraint GenerateContactConstraint(const Manifold& manifold, int pointI
         constraint.rB = constraint.contactPoint - b.position;
         constraint.accumulatedNormalImpulse = 0;
         constraint.accumulatedFrictionImpulse = 0;
-        constraint.bias = 0;
+        constraint.accumulatedPseudoImpulse = 0;
+        
+        Vec2 vRel = (a.velocity + Vec2(-a.angularVelocity * constraint.rA.y, a.angularVelocity * constraint.rA.x)) - (b.velocity + Vec2(-b.angularVelocity * constraint.rB.y, b.angularVelocity * constraint.rB.x));
+        float vRelDotN = DotProduct(vRel, constraint.normal);
+        float restitution = std::min(a.restitution, b.restitution);
+
+        constraint.bias = (vRelDotN < -1.0f) ? -restitution * vRelDotN : 0.0f;
+        
+        float slop = 0.05f;
+        float biasFactor = 0.2f;
+        constraint.pseudoBias = (biasFactor / dt) * std::max(constraint.penetration - slop, 0.0f);
 
         return constraint;
     } 
-void ResolveContactConstraint(ContactConstraint& constraint, float dt)
+inline void ResolveContactConstraint(ContactConstraint& constraint, float dt)
     {
         //Normal impulse
         RigidBody2D& a = *constraint.bodyA;
@@ -100,16 +117,13 @@ void ResolveContactConstraint(ContactConstraint& constraint, float dt)
         Vec2 vRel = vContactA - vContactB;
 
         float vRelDotN = DotProduct(vRel, constraint.normal);
-        float denominator = a.invMass + b.invMass + CrossProduct(constraint.rA, constraint.normal) * a.invInertia * CrossProduct(constraint.rA, constraint.normal) + CrossProduct(constraint.rB, constraint.normal) * b.invInertia * CrossProduct(constraint.rB, constraint.normal);
+        float rnA = CrossProduct(constraint.rA, constraint.normal);
+        float rnB = CrossProduct(constraint.rB, constraint.normal);
+
+        float denominator = a.invMass + b.invMass + rnA * a.invInertia * rnA + rnB * b.invInertia * rnB;
         if (denominator > 1e-8f) 
         {
-            float slop = 0.3f;
-            float biasFactor = 0.4f;
-            constraint.bias = (biasFactor / dt) * std::max(constraint.penetration - slop, 0.0f);
-
-            float restitution = std::min(a.restitution, b.restitution);
-
-            float lambda = (-(1.0f + restitution) * vRelDotN + constraint.bias) / denominator;
+            float lambda = (-vRelDotN + constraint.bias) / denominator;
             float oldAccumulatedNormalImpulse = constraint.accumulatedNormalImpulse;
             constraint.accumulatedNormalImpulse = std::max(oldAccumulatedNormalImpulse + lambda, 0.0f);
             float actualLambda = constraint.accumulatedNormalImpulse - oldAccumulatedNormalImpulse;
@@ -122,14 +136,16 @@ void ResolveContactConstraint(ContactConstraint& constraint, float dt)
         }
 
         //Friction impulse
-        Vec2 vContactA2 = a.velocity + Vec2(-a.angularVelocity * constraint.rA.y, a.angularVelocity * constraint.rA.x);
-        Vec2 vContactB2 = b.velocity + Vec2(-b.angularVelocity * constraint.rB.y, b.angularVelocity * constraint.rB.x);
-        Vec2 vRel2 = vContactA2 - vContactB2;
-
-        float vRelDotTangent = DotProduct(vRel2, constraint.tangent);
-        float frictionDenominator = a.invMass + b.invMass + CrossProduct(constraint.rA, constraint.tangent) * a.invInertia * CrossProduct(constraint.rA, constraint.tangent) + CrossProduct(constraint.rB, constraint.tangent) * b.invInertia * CrossProduct(constraint.rB, constraint.tangent);
+        float rtA = CrossProduct(constraint.rA, constraint.tangent);
+        float rtB = CrossProduct(constraint.rB, constraint.tangent);
+        float frictionDenominator = a.invMass + b.invMass + rtA * a.invInertia * rtA + rtB * b.invInertia * rtB;
         if (frictionDenominator > 1e-8f) 
         {
+            Vec2 vContactA2 = a.velocity + Vec2(-a.angularVelocity * constraint.rA.y, a.angularVelocity * constraint.rA.x);
+            Vec2 vContactB2 = b.velocity + Vec2(-b.angularVelocity * constraint.rB.y, b.angularVelocity * constraint.rB.x);
+            Vec2 vRel2 = vContactA2 - vContactB2;
+            float vRelDotTangent = DotProduct(vRel2, constraint.tangent);
+            
             float jt = -vRelDotTangent / frictionDenominator;
             float mu = (a.staticFriction + b.staticFriction) * 0.5f;
             float maxFriction = mu * constraint.accumulatedNormalImpulse;
@@ -145,8 +161,26 @@ void ResolveContactConstraint(ContactConstraint& constraint, float dt)
             b.velocity = b.velocity - frictionImpulse * b.invMass;
             b.angularVelocity -= CrossProduct(constraint.rB, frictionImpulse) * b.invInertia;
         }
+
+        Vec2 pseudoContactA = a.pseudoVelocity + Vec2(-a.pseudoAngularVelocity * constraint.rA.y, a.pseudoAngularVelocity * constraint.rA.x);
+        Vec2 pseudoContactB = b.pseudoVelocity + Vec2(-b.pseudoAngularVelocity * constraint.rB.y, b.pseudoAngularVelocity * constraint.rB.x);   
+        Vec2 pseudoVRel = pseudoContactA - pseudoContactB;
+        float pseudoVRelDotN = DotProduct(pseudoVRel, constraint.normal);
+
+        float pseudoLambda = (-pseudoVRelDotN + constraint.pseudoBias) / denominator;
+
+        float oldAccumulatedPseudoImpulse = constraint.accumulatedPseudoImpulse;
+        constraint.accumulatedPseudoImpulse = std::max(oldAccumulatedPseudoImpulse + pseudoLambda, 0.0f);
+        float actualPseudoLambda = constraint.accumulatedPseudoImpulse - oldAccumulatedPseudoImpulse;
+
+        Vec2 pseudoImpulse = constraint.normal * actualPseudoLambda;
+
+        a.pseudoVelocity = a.pseudoVelocity + pseudoImpulse * a.invMass;
+        a.pseudoAngularVelocity += CrossProduct(constraint.rA, pseudoImpulse) * a.invInertia;
+        b.pseudoVelocity = b.pseudoVelocity - pseudoImpulse * b.invMass;
+        b.pseudoAngularVelocity -= CrossProduct(constraint.rB, pseudoImpulse) * b.invInertia;
     }
-void SolveConstraints(std::vector<ContactConstraint>& constraints, const std::vector<ContactConstraint>& previousConstraints, float dt)
+inline void SolveConstraints(std::vector<ContactConstraint>& constraints, const std::vector<ContactConstraint>& previousConstraints, float dt)
     {
         const int iterations = 10;
         MatchAndWarmStart(constraints, previousConstraints);

@@ -24,11 +24,9 @@ void Update(float dt)
     {
         const int substeps = 4;
         float subDt = FIXED_TIMESTEP / substeps;
-
-        std::vector<ContactConstraint> newConstraints;
+      
         for (int s = 0; s < substeps; s++)
         {
-            newConstraints.clear();
             for (RigidBody2D* body : bodies)
             {
                 if (!body->isAwake) continue;
@@ -37,8 +35,9 @@ void Update(float dt)
             }
 
             for (RigidBody2D* body : bodies)
-                body->Integrate(subDt);
-            
+                body->IntegrateVelocities(subDt);
+
+            std::vector<ContactConstraint> newConstraints;
             auto pairs = BroadPhase(bodies, entries);
             for (const auto& [i, j] : pairs)
             {
@@ -48,9 +47,13 @@ void Update(float dt)
                 Manifold manifold = GetManifold(*a, *b);
                 if (manifold.colliding)
                     for (int p = 0; p < manifold.contactCount; p++)
-                        newConstraints.push_back(GenerateContactConstraint(manifold, p, *a, *b));
+                        newConstraints.push_back(GenerateContactConstraint(manifold, p, *a, *b, subDt));
             }
             SolveConstraints(newConstraints, previousConstraints, subDt);
+            for (DistanceConstraint& dc : distanceConstraints)
+                SolveDistanceConstraint(dc, subDt);
+            for (RigidBody2D* body : bodies)
+                body->IntegratePositions(subDt);
             previousConstraints = newConstraints;
         }
         
@@ -168,14 +171,14 @@ if (firstBall)
     ground->staticFriction = 0.5f;
     bodies.push_back(ground);
 
-    for (int i = 0; i < 5; i++)
+    for (int i = 0; i < 3; i++)
     {
         Box* boxShape = new Box();
         boxShape->width = 50;
         boxShape->height = 50;
         RigidBody2D* box = new RigidBody2D(1, boxShape);
         box->position = Vec2(400, 400 - i * 50);
-        box->restitution = 0.0f;
+        box->restitution = 0.5f;
         box->staticFriction = 0.5f;
         bodies.push_back(box);
     }

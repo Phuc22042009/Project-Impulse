@@ -8,7 +8,7 @@ struct AABBEntry
     float minY, maxY;
     int index;
 };
-void InsertionSort(std::vector<AABBEntry>& entries) 
+inline void InsertionSort(std::vector<AABBEntry>& entries) 
 {
     for (int i = 1; i < entries.size(); i++) 
     {
@@ -23,7 +23,7 @@ void InsertionSort(std::vector<AABBEntry>& entries)
         entries[j + 1] = key;
     }
 }
-AABBEntry GetAABBEntry(RigidBody2D* body, int index) 
+inline AABBEntry GetAABBEntry(RigidBody2D* body, int index) 
 {
     AABBEntry entry;
     entry.index = index;
@@ -54,7 +54,7 @@ AABBEntry GetAABBEntry(RigidBody2D* body, int index)
     
     return entry;
 }
-std::vector<std::pair<int, int>> BroadPhase(const std::vector<RigidBody2D*>& bodies, std::vector<AABBEntry>& entries) 
+inline std::vector<std::pair<int, int>> BroadPhase(const std::vector<RigidBody2D*>& bodies, std::vector<AABBEntry>& entries) 
 {
     entries.resize(bodies.size());
     for (int i = 0; i < (int)bodies.size(); i++) 

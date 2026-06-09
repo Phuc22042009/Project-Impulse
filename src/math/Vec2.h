@@ -42,11 +42,11 @@ struct Vec2
         return { x * c - y * s,  x * s + y * c };
     }
 };
-float DotProduct(Vec2 a, Vec2 b)
+inline float DotProduct(Vec2 a, Vec2 b)
 {
     return a.x * b.x + a.y * b.y;
 }
-float CrossProduct(Vec2 a, Vec2 b)
+inline float CrossProduct(Vec2 a, Vec2 b)
 {
     return a.x * b.y - a.y * b.x;
 }
