@@ -3,7 +3,7 @@
     #include "Shape.h"
     struct RigidBody2D
     {
-        Shape* shape;
+        std::unique_ptr<Shape> shape;
 
         Vec2 position;
         Vec2 force;
@@ -26,10 +26,10 @@
         bool isAwake = true;
         float sleepTimer = 0;
         
-        RigidBody2D(float mass, Shape* shape): mass(mass), invMass(0), position(), force(), velocity(), torque(0), shape(shape), restitution(0.0f), staticFriction(0.5f), angularVelocity(0), pseudoAngularVelocity(0), angle(0)
+        RigidBody2D(float mass, std::unique_ptr<Shape> shape): mass(mass), invMass(0), position(), force(), velocity(), torque(0), shape(std::move(shape)), restitution(0.0f), staticFriction(0.5f), angularVelocity(0), pseudoVelocity(), pseudoAngularVelocity(0), angle(0)
         {
             invMass = (mass == 0) ? 0 : 1 / mass;
-            inertia = shape->ComputeInertia(mass);
+            inertia = this->shape->ComputeInertia(mass);
             invInertia = (inertia == 0) ? 0 : 1 / inertia;
         }
 

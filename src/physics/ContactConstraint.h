@@ -3,6 +3,7 @@
 #include "Collision.h"
 #include "../math/Vec2.h"
 #include <vector>
+#include <memory>
 struct ContactConstraint
     {
         RigidBody2D* bodyA;

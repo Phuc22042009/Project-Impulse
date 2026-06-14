@@ -166,6 +166,7 @@ inline Vec2 FindContactPoint(const Vec2 verticesB[4], const RigidBody2D& bodyA, 
         {
             for (int i = 0; i < 4; ++i) 
             {
+                float minDistSq = std::numeric_limits<float>::max();
                 Vec2 d = verticesB[i] - bodyA.position;
                 float distSq = d.LenSq();
                 if (distSq < minDist) 
@@ -199,6 +200,48 @@ inline int FindContactPoints(const Vec2 verticlesB[4], const RigidBody2D& bodyA,
             }
         }
         return count;
+    }
+inline void ReduceContactPoints(Manifold& manifold) 
+    {
+        if (manifold.contactCount <= 1) return;
+
+        const float closestDistSq = 1.0f;
+        for (int i = 0; i < manifold.contactCount; ++i) 
+        {
+            for (int j = i + 1; j < manifold.contactCount; ++j) 
+            {
+                if ((manifold.contactPoint[i] - manifold.contactPoint[j]).LenSq() < closestDistSq) 
+                {
+                    manifold.contactPoint[j] = manifold.contactPoint[manifold.contactCount - 1];
+                    manifold.contactCount--;
+                    j--;
+                }
+            }
+        }
+        if (manifold.contactCount > 2) 
+        {
+            int indexA = 0, indexB = 1;
+            float maxDistSq = (manifold.contactPoint[0] - manifold.contactPoint[1]).LenSq();
+            for (int i = 0; i < manifold.contactCount; ++i) 
+            {
+                for (int j = i + 1; j < manifold.contactCount; ++j) 
+                {
+                    float distSq = (manifold.contactPoint[i] - manifold.contactPoint[j]).LenSq();
+                    if (distSq > maxDistSq) 
+                    {
+                        maxDistSq = distSq;
+                        indexA = i;
+                        indexB = j;
+                    }
+                }
+            }
+            Vec2 pA = manifold.contactPoint[indexA];
+            Vec2 pB = manifold.contactPoint[indexB];
+
+            manifold.contactPoint[0] = pA;
+            manifold.contactPoint[1] = pB;
+            manifold.contactCount = 2;
+        }
     }
 inline Manifold OBBvsOBBManifold(const RigidBody2D& bodyA, const Box& boxA, const RigidBody2D& bodyB, const Box& boxB) 
     {
@@ -266,6 +309,7 @@ inline Manifold OBBvsOBBManifold(const RigidBody2D& bodyA, const Box& boxA, cons
             manifold.contactCount = totalCount;
             for (int i = 0; i < totalCount; i++)
                 manifold.contactPoint[i] = allPoints[i];
+            ReduceContactPoints(manifold);
         }
         return manifold;
     }
@@ -326,36 +370,43 @@ inline Manifold OBBvsCircleManifold(const RigidBody2D& bodyA, const Box& boxA, c
         }
         return manifold;
     }
-inline Manifold GetManifold(RigidBody2D& a, RigidBody2D& b)
+inline Manifold GetManifold(RigidBody2D* a, RigidBody2D* b)
 {
-    Box* boxA  = dynamic_cast<Box*>(a.shape);
-    Box* boxB  = dynamic_cast<Box*>(b.shape);
-    Circle* circA = dynamic_cast<Circle*>(a.shape);
-    Circle* circB = dynamic_cast<Circle*>(b.shape);
-
-    if (boxA && boxB)
+    if (!a || !b || !a->shape || !b->shape) 
     {
-        return OBBvsOBBManifold(a, *boxA, b, *boxB);
+        Manifold empty; 
+        empty.colliding = false;
+        return empty;
     }
 
-    if (circA && circB)
+    if (a->shape->type == ShapeType::Box && b->shape->type == ShapeType::Box)
     {
-        circA->center = a.position;
-        circB->center = b.position;
-        return GetCircleManifold(*circA, *circB);
+        return OBBvsOBBManifold(*a, static_cast<Box&>(*a->shape.get()), *b, static_cast<Box&>(*b->shape.get()));
     }
 
-    if (boxA && circB)
+    if (a->shape->type == ShapeType::Circle && b->shape->type == ShapeType::Circle)
     {
-        AABB aabbA(a.position - Vec2(boxA->width*0.5f, boxA->height*0.5f), a.position + Vec2(boxA->width*0.5f, boxA->height*0.5f));
-        circB->center = b.position;
-        return OBBvsCircleManifold(a, *boxA, b, *circB);
+        Circle circA = *static_cast<Circle*>(a->shape.get());
+        Circle circB = *static_cast<Circle*>(b->shape.get());
+        circA.center = a->position;
+        circB.center = b->position;
+        return GetCircleManifold(circA, circB);
     }
 
-    if (circA && boxB)
+    if (a->shape->type == ShapeType::Box && b->shape->type == ShapeType::Circle)
     {
-        circA->center = a.position;
-        Manifold manifold = OBBvsCircleManifold(b, *boxB, a, *circA);
+        Circle circB = *static_cast<Circle*>(b->shape.get());
+        circB.center = b->position;
+        Box boxA = *static_cast<Box*>(a->shape.get());
+        return OBBvsCircleManifold(*a, boxA, *b, circB);
+    }
+
+    if (a->shape->type == ShapeType::Circle && b->shape->type == ShapeType::Box)
+    {
+        Circle circA = *static_cast<Circle*>(a->shape.get());
+        circA.center = a->position;
+        Box boxB = *static_cast<Box*>(b->shape.get());
+        Manifold manifold = OBBvsCircleManifold(*b, boxB, *a, circA);
         manifold.normal = manifold.normal * -1.0f;
         return manifold;
     }
