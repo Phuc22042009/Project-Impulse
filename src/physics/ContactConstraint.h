@@ -6,8 +6,8 @@
 #include <memory>
 struct ContactConstraint
     {
-        RigidBody2D* bodyA;
-        RigidBody2D* bodyB;
+        int bodyAIndex;
+        int bodyBIndex;
         Vec2 rA;
         Vec2 rB;
         Vec2 normal;
@@ -22,10 +22,10 @@ struct ContactConstraint
 
         float bias;
     };
-inline void WarmStart(ContactConstraint& constraint)
+inline void WarmStart(ContactConstraint& constraint, std::vector<RigidBody2D>& bodies)
     {
-        RigidBody2D& a = *constraint.bodyA;
-        RigidBody2D& b = *constraint.bodyB;
+        RigidBody2D& a = bodies[constraint.bodyAIndex];
+        RigidBody2D& b = bodies[constraint.bodyBIndex];
 
         constraint.rA = constraint.contactPoint - a.position;
         constraint.rB = constraint.contactPoint - b.position;
@@ -39,14 +39,14 @@ inline void WarmStart(ContactConstraint& constraint)
         b.velocity = b.velocity - totalImpulse * b.invMass;
         b.angularVelocity -= CrossProduct(constraint.rB, totalImpulse) * b.invInertia;
     }
-inline void MatchAndWarmStart(std::vector<ContactConstraint>& constraints, const std::vector<ContactConstraint>& previousConstraints)
+inline void MatchAndWarmStart(std::vector<ContactConstraint>& constraints, const std::vector<ContactConstraint>& previousConstraints, std::vector<RigidBody2D>& bodies)
     {
         const float matchDistanceSq = 4.0f * 4.0f;
         for (ContactConstraint& constraint : constraints) 
         {
             for (const ContactConstraint& prev : previousConstraints) 
             {
-                if (constraint.bodyA == prev.bodyA && constraint.bodyB == prev.bodyB)
+                if (constraint.bodyAIndex == prev.bodyAIndex && constraint.bodyBIndex == prev.bodyBIndex)
                 {
                     if ((constraint.contactPoint - prev.contactPoint).LenSq() < matchDistanceSq)
                     {
@@ -56,11 +56,11 @@ inline void MatchAndWarmStart(std::vector<ContactConstraint>& constraints, const
                             constraint.accumulatedFrictionImpulse = prev.accumulatedFrictionImpulse;
                         else
                             constraint.accumulatedFrictionImpulse = -prev.accumulatedFrictionImpulse;
-                        WarmStart(constraint);
+                        WarmStart(constraint, bodies);
                         break;
                     }
                 }
-                else if (constraint.bodyA == prev.bodyB && constraint.bodyB == prev.bodyA)
+                else if (constraint.bodyAIndex == prev.bodyBIndex && constraint.bodyBIndex == prev.bodyAIndex)
                 {
                     if ((constraint.contactPoint - prev.contactPoint).LenSq() < matchDistanceSq)
                     {
@@ -70,21 +70,24 @@ inline void MatchAndWarmStart(std::vector<ContactConstraint>& constraints, const
                             constraint.accumulatedFrictionImpulse = -prev.accumulatedFrictionImpulse;
                         else
                             constraint.accumulatedFrictionImpulse = prev.accumulatedFrictionImpulse;
-                        WarmStart(constraint);
+                        WarmStart(constraint, bodies);
                         break;
                     }
                 }
             }
         }
     }  
-inline ContactConstraint GenerateContactConstraint(const Manifold& manifold, int pointIndex, RigidBody2D& a, RigidBody2D& b, float dt)
+inline ContactConstraint GenerateContactConstraint(const Manifold& manifold, std::vector<RigidBody2D>& bodies, int pointIndex, int indexA, int indexB, float dt)
     {
+        RigidBody2D& a = bodies[indexA];
+        RigidBody2D& b = bodies[indexB];
+
         if (!a.isAwake) {a.isAwake = true, a.sleepTimer = 0;}
         if (!b.isAwake) {b.isAwake = true, b.sleepTimer = 0;}
 
         ContactConstraint constraint;
-        constraint.bodyA = &a;
-        constraint.bodyB = &b;
+        constraint.bodyAIndex = indexA;
+        constraint.bodyBIndex = indexB;
         constraint.normal = manifold.normal;
         constraint.tangent = Vec2(-manifold.normal.y, manifold.normal.x);
         constraint.contactPoint = manifold.contactPoint[pointIndex];
@@ -107,11 +110,11 @@ inline ContactConstraint GenerateContactConstraint(const Manifold& manifold, int
 
         return constraint;
     } 
-inline void ResolveContactConstraint(ContactConstraint& constraint, float dt)
+inline void ResolveContactConstraint(ContactConstraint& constraint, std::vector<RigidBody2D>& bodies, float dt)
     {
         //Normal impulse
-        RigidBody2D& a = *constraint.bodyA;
-        RigidBody2D& b = *constraint.bodyB;
+        RigidBody2D& a = bodies[constraint.bodyAIndex];
+        RigidBody2D& b = bodies[constraint.bodyBIndex];
 
         Vec2 vContactA = a.velocity + Vec2(-a.angularVelocity * constraint.rA.y, a.angularVelocity * constraint.rA.x);
         Vec2 vContactB = b.velocity + Vec2(-b.angularVelocity * constraint.rB.y, b.angularVelocity * constraint.rB.x);
@@ -167,7 +170,8 @@ inline void ResolveContactConstraint(ContactConstraint& constraint, float dt)
         Vec2 pseudoContactB = b.pseudoVelocity + Vec2(-b.pseudoAngularVelocity * constraint.rB.y, b.pseudoAngularVelocity * constraint.rB.x);   
         Vec2 pseudoVRel = pseudoContactA - pseudoContactB;
         float pseudoVRelDotN = DotProduct(pseudoVRel, constraint.normal);
-
+        if (denominator > 1e-8f) 
+        {
         float pseudoLambda = (-pseudoVRelDotN + constraint.pseudoBias) / denominator;
 
         float oldAccumulatedPseudoImpulse = constraint.accumulatedPseudoImpulse;
@@ -180,16 +184,17 @@ inline void ResolveContactConstraint(ContactConstraint& constraint, float dt)
         a.pseudoAngularVelocity += CrossProduct(constraint.rA, pseudoImpulse) * a.invInertia;
         b.pseudoVelocity = b.pseudoVelocity - pseudoImpulse * b.invMass;
         b.pseudoAngularVelocity -= CrossProduct(constraint.rB, pseudoImpulse) * b.invInertia;
+        }
     }
-inline void SolveConstraints(std::vector<ContactConstraint>& constraints, const std::vector<ContactConstraint>& previousConstraints, float dt)
+inline void SolveConstraints(std::vector<ContactConstraint>& constraints, const std::vector<ContactConstraint>& previousConstraints, std::vector<RigidBody2D>& bodies, float dt)
     {
         const int iterations = 10;
-        MatchAndWarmStart(constraints, previousConstraints);
+        MatchAndWarmStart(constraints, previousConstraints, bodies);
         for (int i = 0; i < iterations; ++i) 
         {
             for (ContactConstraint& constraint : constraints) 
             {
-                ResolveContactConstraint(constraint, dt);
+                ResolveContactConstraint(constraint, bodies, dt);
             }
         }
     }

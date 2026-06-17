@@ -42,17 +42,20 @@ void Update(float dt)
             auto pairs = BroadPhase(bodies, entries);
             for (const auto& [i, j] : pairs)
             {
-                RigidBody2D* a = &bodies[i];
-                RigidBody2D* b = &bodies[j];
 
-                Manifold manifold = GetManifold(a, b);
+                Manifold manifold = GetManifold(&bodies[i], &bodies[j]);
                 if (manifold.colliding)
                     for (int p = 0; p < manifold.contactCount; p++)
-                        newConstraints.push_back(GenerateContactConstraint(manifold, p, *a, *b, subDt));
+                        newConstraints.push_back(GenerateContactConstraint(manifold, bodies, p, i, j, subDt));
             }
-            SolveConstraints(newConstraints, previousConstraints, subDt);
-            for (DistanceConstraint& dc : distanceConstraints)
-                SolveDistanceConstraint(dc, subDt);
+            SolveConstraints(newConstraints, previousConstraints, bodies, subDt);
+            for (int iter = 0; iter < 1; iter++)
+            {
+                for (DistanceConstraint& dc : distanceConstraints)
+                {
+                    SolveDistanceConstraint(dc, bodies, subDt);
+                }
+            }
             for (auto& body : bodies)
                 body.IntegratePositions(subDt);
             previousConstraints = newConstraints;
@@ -108,27 +111,30 @@ for (int i = 0; i < 5; i++)
     auto bobShape = std::make_unique<Circle>();
     bobShape->radius = 10;
     bodies.emplace_back(1.0f, std::move(bobShape));
-    RigidBody2D* firstBall = &bodies.back();
-    bodies.back().position = Vec2(300 + i * 20, 400);
-    bodies.back().restitution = 0.0f;
-    bodies.back().staticFriction = 0.0f;
-    
-    if (i == 0)
-        firstBall->position = Vec2(600, 250);
+    int bobIndex = (int)bodies.size() - 1;
+    bodies[bobIndex].position       = Vec2(300 + i * 20, 400);
+    bodies[bobIndex].restitution    = 0.0f;
+    bodies[bobIndex].staticFriction = 0.0f;
+
     for (int j = 0; j < 2; j++)
     {
-        auto circleShape = std::make_unique<Circle>();
-        circleShape->radius = 5;
-        bodies.emplace_back(0.0f, std::move(circleShape));
-        bodies.back().position = Vec2(300 + i * 20 + (j == 0 ? -10 : 10), 150);
+        auto anchorShape = std::make_unique<Circle>();
+        anchorShape->radius = 5;
+        bodies.emplace_back(0.0f, std::move(anchorShape));
+        int anchorIndex = (int)bodies.size() - 1;   // ← index
+
+        bodies[anchorIndex].position = Vec2(300 + i * 20 + (j == 0 ? -10 : 10), 150);
 
         DistanceConstraint dc;
-        dc.bodyA = &bodies.back();
-        dc.bodyB = firstBall;
-        dc.restLength = (firstBall->position - bodies.back().position).Len();
-        dc.accumulatedImpulse = 0;
+        dc.bodyAIndex = anchorIndex;
+        dc.bodyBIndex = bobIndex;
+        dc.restLength   = (bodies[bobIndex].position - bodies[anchorIndex].position).Len();
+        dc.accumulatedImpulse = 0.0f;
         distanceConstraints.push_back(dc);
     }
+
+    if (i == 0)
+        bodies[bobIndex].position = Vec2(600, 250);
 }
 
 

@@ -26,7 +26,7 @@
         bool isAwake = true;
         float sleepTimer = 0;
         
-        RigidBody2D(float mass, std::unique_ptr<Shape> shape): mass(mass), invMass(0), position(), force(), velocity(), torque(0), shape(std::move(shape)), restitution(0.0f), staticFriction(0.5f), angularVelocity(0), pseudoVelocity(), pseudoAngularVelocity(0), angle(0)
+        RigidBody2D(float mass, std::unique_ptr<Shape> shape):  shape(std::move(shape)), position(), force(),  velocity(), pseudoVelocity(), pseudoAngularVelocity(0), angularVelocity(0), angle(0), mass(mass), invMass(0), torque(0), inertia(0), invInertia(0), restitution(0.0f), staticFriction(0.5f)
         {
             invMass = (mass == 0) ? 0 : 1 / mass;
             inertia = this->shape->ComputeInertia(mass);
@@ -45,7 +45,8 @@
         void IntegrateVelocities(float dt)
         {
             if(!isAwake) return;
-
+            if (invMass == 0) return;
+            
             Vec2 acceleration = force * invMass;
             velocity = velocity + acceleration * dt;
 
