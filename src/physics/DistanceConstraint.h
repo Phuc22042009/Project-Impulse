@@ -1,5 +1,6 @@
 #pragma once
 #include "RigidBody2D.h"
+#include <vector>
 #include <memory>
 struct DistanceConstraint
 {
@@ -9,23 +10,22 @@ struct DistanceConstraint
     float restLength;
     float accumulatedImpulse;
 };
-inline void SolveDistanceConstraint(DistanceConstraint& constraint, std::vector<RigidBody2D>& bodies, float dt)
+inline void SolveDistanceConstraint(DistanceConstraint &constraint, std::vector<RigidBody2D> &bodies, float dt)
 {
-    RigidBody2D& bodyA = bodies[constraint.bodyAIndex];
-    RigidBody2D& bodyB = bodies[constraint.bodyBIndex];
-
-    if (!&bodyA || !&bodyB) return;
+    RigidBody2D &bodyA = bodies[constraint.bodyAIndex];
+    RigidBody2D &bodyB = bodies[constraint.bodyBIndex];
 
     Vec2 d = bodyB.position - bodyA.position;
     float currentLength = d.Len();
     Vec2 dHat = (currentLength > 1e-8f) ? d / currentLength : Vec2(0, 0);
     float constraintError = currentLength - constraint.restLength;
-    
+
     float Cdot = DotProduct(dHat, bodyA.velocity) - DotProduct(dHat, bodyB.velocity);
     float denominator = bodyA.invMass + bodyB.invMass;
 
     float bias = (0.2f / dt) * constraintError;
-    if (denominator < 1e-8f) return;
+    if (denominator < 1e-8f)
+        return;
     float lambda = (-Cdot + bias) / denominator;
 
     Vec2 impulse = dHat * lambda;

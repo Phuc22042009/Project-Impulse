@@ -17,7 +17,7 @@ struct Box : Shape
 {
     float width;
     float height;
-    Box() {type = ShapeType::Box;}
+    Box() { type = ShapeType::Box; }
     float ComputeInertia(float mass) const override
     {
         return mass * (height * height + width * width) / 12;
@@ -27,16 +27,15 @@ struct Circle : Shape
 {
     Vec2 center;
     float radius;
-    Circle() {type = ShapeType::Circle;}
+    Circle() { type = ShapeType::Circle; }
     float ComputeInertia(float mass) const override
     {
         return radius * radius * mass / 2;
     }
 };
-struct AABB 
+struct AABB
 {
     Vec2 min;
     Vec2 max;
-    AABB(Vec2 min, Vec2 max): min(min), max(max) {}
+    AABB(Vec2 min, Vec2 max) : min(min), max(max) {}
 };
-    

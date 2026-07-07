@@ -8,14 +8,14 @@ struct AABBEntry
     float minY = 0, maxY = 0;
     int index;
 };
-inline void InsertionSort(std::vector<AABBEntry>& entries) 
+inline void InsertionSort(std::vector<AABBEntry> &entries)
 {
-    for (int i = 1; i < entries.size(); i++) 
+    for (int i = 1; i < entries.size(); i++)
     {
         AABBEntry key = entries[i];
         int j = i - 1;
 
-        while (j >= 0 && entries[j].minX > key.minX) 
+        while (j >= 0 && entries[j].minX > key.minX)
         {
             entries[j + 1] = entries[j];
             j--;
@@ -23,19 +23,20 @@ inline void InsertionSort(std::vector<AABBEntry>& entries)
         entries[j + 1] = key;
     }
 }
-inline AABBEntry GetAABBEntry(const RigidBody2D* body, int index) 
+inline AABBEntry GetAABBEntry(const RigidBody2D *body, int index)
 {
     AABBEntry entry;
     entry.index = index;
 
-    if (!body || !body->shape) return entry;
-    
-    if (body->shape->type == ShapeType::Box) 
+    if (!body || !body->shape)
+        return entry;
+
+    if (body->shape->type == ShapeType::Box)
     {
-        Box* box = static_cast<Box*>(body->shape.get());
+        Box *box = static_cast<Box *>(body->shape.get());
         float cosA = std::abs(std::cos(body->angle));
         float sinA = std::abs(std::sin(body->angle));
-        //Calculate half-width and half-height of the AABB
+        // Calculate half-width and half-height of the AABB
         float hw = box->width * 0.5f * cosA + box->height * 0.5f * sinA;
         float hh = box->height * 0.5f * cosA + box->width * 0.5f * sinA;
 
@@ -44,43 +45,48 @@ inline AABBEntry GetAABBEntry(const RigidBody2D* body, int index)
         entry.minY = body->position.y - hh;
         entry.maxY = body->position.y + hh;
     }
-    else if (body->shape->type == ShapeType::Circle) 
+    else if (body->shape->type == ShapeType::Circle)
     {
-        Circle* circle = static_cast<Circle*>(body->shape.get());
+        Circle *circle = static_cast<Circle *>(body->shape.get());
         entry.minX = body->position.x - circle->radius;
         entry.maxX = body->position.x + circle->radius;
         entry.minY = body->position.y - circle->radius;
         entry.maxY = body->position.y + circle->radius;
     }
-    
+
     return entry;
 }
-inline std::vector<std::pair<int, int>> BroadPhase(const std::vector<RigidBody2D>& bodies, std::vector<AABBEntry>& entries) 
+inline std::vector<std::pair<int, int>> BroadPhase(const std::vector<RigidBody2D> &bodies, std::vector<AABBEntry> &entries)
 {
     entries.resize(bodies.size());
-    for (int i = 0; i < (int)bodies.size(); i++) 
+    for (int i = 0; i < (int)bodies.size(); i++)
     {
         entries[i] = GetAABBEntry(&bodies[i], i);
     }
-    if (bodies.size() < 100) 
+    if (bodies.size() < 100)
         InsertionSort(entries);
     else
-        std::sort(entries.begin(), entries.end(), [](const AABBEntry& a, const AABBEntry& b) { return a.minX < b.minX; });
-    
-    std::vector<std::pair<int, int>> pairs;
-    for (int i = 0; i < (int)entries.size(); i++) 
-    {
-        for (int j = i + 1; j < (int)entries.size(); j++) 
-        {
-            if (entries[j].minX > entries[i].maxX) break;
+        std::sort(entries.begin(), entries.end(), [](const AABBEntry &a, const AABBEntry &b)
+                  { return a.minX < b.minX; });
 
-            if (entries[i].maxY < entries[j].minY || entries[i].minY > entries[j].maxY) continue;
+    std::vector<std::pair<int, int>> pairs;
+    for (int i = 0; i < (int)entries.size(); i++)
+    {
+        for (int j = i + 1; j < (int)entries.size(); j++)
+        {
+            if (entries[j].minX > entries[i].maxX)
+                break;
+
+            if (entries[i].maxY < entries[j].minY || entries[i].minY > entries[j].maxY)
+                continue;
 
             int indexA = entries[i].index;
             int indexB = entries[j].index;
-            
-            if (bodies[indexA].invMass == 0 && bodies[indexB].invMass == 0) continue;
-            if (!bodies[indexA].isAwake && !bodies[indexB].isAwake) continue;
+
+            if (bodies[indexA].invMass == 0 && bodies[indexB].invMass == 0)
+                continue;
+            if (!bodies[indexA].isAwake && !bodies[indexB].isAwake)
+                continue;
             pairs.push_back({indexA, indexB});
         }
     }
