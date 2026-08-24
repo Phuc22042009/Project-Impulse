@@ -1,12 +1,35 @@
+# ==========================================
+# CMake & Build Outputs
+# ==========================================
 build/
+bin/
+lib/
 out/
-.cmake/
+_deps/
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+CMakeLists.txt.user
+compile_commands.json
 
-*.exe
+# Compiled Binaries & Objects
 *.o
 *.obj
-*.dll
+*.a
+*.lib
 *.so
 *.dylib
+*.dll
+*.exe
+*.out
+*.pdb
+*.ilk
 
-.vscode/
+.vscode/*
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/settings.json
+
+.DS_Store
+Thumbs.db
+desktop.ini

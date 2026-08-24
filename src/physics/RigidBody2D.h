@@ -12,97 +12,27 @@ struct RigidBody2D
     Vec2 velocity;
 
     Vec2 pseudoVelocity;
-    float pseudoAngularVelocity;
-
-    float torque;
-    float angularVelocity;
-    float angle;
-
-    float mass;
-    float invMass;
-    float inertia;
-    float invInertia;
-    float restitution;
-    float staticFriction;
+    float pseudoAngularVelocity = 0.0f;
+    float angularVelocity = 0.0f;
+    float angle = 0.0f;
+    
+    float mass = 0.0f;
+    float invMass = 0.0f;
+    
+    float torque = 0.0f;
+    
+    float inertia = 0.0f;
+    float invInertia = 0.0f;
+    float restitution = 0.0f;
+    float staticFriction = 0.5f;
 
     bool isAwake = true;
-    float sleepTimer = 0;
+    float sleepTimer = 0.0f;
 
-    RigidBody2D(float mass, std::unique_ptr<Shape> shape) : shape(std::move(shape)), position(), force(), velocity(), pseudoVelocity(), pseudoAngularVelocity(0), angularVelocity(0), angle(0), mass(mass), invMass(0), torque(0), inertia(0), invInertia(0), restitution(0.0f), staticFriction(0.5f)
-    {
-        invMass = (mass == 0) ? 0 : 1 / mass;
-        inertia = this->shape->ComputeInertia(mass);
-        invInertia = (inertia == 0) ? 0 : 1 / inertia;
-    }
+    RigidBody2D(float mass, std::unique_ptr<Shape> shape);
 
-    void ApplyForce(Vec2 force, Vec2 impactPoint)
-    {
-        isAwake = true;
-        sleepTimer = 0;
-
-        Vec2 centerToForce = impactPoint - position;
-        torque += CrossProduct(centerToForce, force);
-        this->force = this->force + force;
-    }
-    void IntegrateVelocities(float dt)
-    {
-        if (!isAwake)
-            return;
-        if (invMass == 0)
-            return;
-
-        Vec2 acceleration = force * invMass;
-        velocity = velocity + acceleration * dt;
-
-        float angularAcceleration = torque * invInertia;
-        angularVelocity += angularAcceleration * dt;
-
-        velocity = velocity * std::pow(0.98f, dt);
-        angularVelocity *= std::pow(0.98f, dt);
-
-        force = Vec2();
-        torque = 0;
-    }
-
-    void IntegratePositions(float dt)
-    {
-        if (!isAwake)
-            return;
-
-        position = position + (velocity + pseudoVelocity) * dt;
-        angle += (angularVelocity + pseudoAngularVelocity) * dt;
-
-        pseudoVelocity = Vec2();
-        pseudoAngularVelocity = 0;
-    }
+    void ApplyForce(const Vec2 &force, const Vec2 &impactPoint);
+    void IntegrateVelocities(float dt);
+    void IntegratePositions(float dt);
+    void UpdateSleep(RigidBody2D &body, float dt);
 };
-inline void UpdateSleep(RigidBody2D &body, float dt)
-{
-
-    if (body.invMass == 0)
-        return;
-    if (!body.isAwake)
-        return;
-
-    float velocitySq = body.velocity.LenSq();
-    float angularVelocitySq = body.angularVelocity * body.angularVelocity;
-
-    const float linearSleepThresholdSq = 2.0f * 2.0f;
-    const float angularSleepThresholdSq = 0.02f * 0.02f;
-
-    if (velocitySq < linearSleepThresholdSq && angularVelocitySq < angularSleepThresholdSq)
-    {
-        body.sleepTimer += dt;
-        if (body.sleepTimer >= 0.5f)
-        {
-            body.isAwake = false;
-            body.velocity = Vec2();
-            body.angularVelocity = 0;
-        }
-    }
-    else
-    {
-        body.sleepTimer = 0;
-        body.isAwake = true;
-    }
-}
