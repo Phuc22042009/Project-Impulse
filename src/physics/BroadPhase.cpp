@@ -5,7 +5,7 @@
 
 void InsertionSort(std::vector<AABBEntry> &entries)
 {
-    for (int i = 1; i < entries.size(); i++)
+    for (int i = 1; i < (int)entries.size(); i++)
     {
         AABBEntry key = entries[i];
         int j = i - 1;
@@ -28,7 +28,7 @@ AABBEntry GetAABBEntry(const RigidBody2D &body, int index)
         Box *box = static_cast<Box *>(body.shape.get());
         float cosA = std::abs(std::cos(body.angle));
         float sinA = std::abs(std::sin(body.angle));
-        // Calculate half-width and half-height of the AABB
+        
         float hw = box->width * 0.5f * cosA + box->height * 0.5f * sinA;
         float hh = box->height * 0.5f * cosA + box->width * 0.5f * sinA;
 
@@ -52,16 +52,24 @@ void BroadPhase(const std::vector<RigidBody2D> &bodies, std::vector<AABBEntry> &
 {
     outPairs.clear();
 
-    entries.resize(bodies.size());
-    for (int i = 0; i < (int)bodies.size(); i++)
+    if (entries.size() != bodies.size())
     {
-        entries[i] = GetAABBEntry(bodies[i], i);
-    }
-    if (bodies.size() < 100)
-        InsertionSort(entries);
-    else
+        entries.resize(bodies.size());
+        for (int i = 0; i < (int)bodies.size(); i++)
+        {
+            entries[i] = GetAABBEntry(bodies[i], i);
+        }
         std::sort(entries.begin(), entries.end(), [](const AABBEntry &a, const AABBEntry &b)
                   { return a.minX < b.minX; });
+    }
+    else
+    {
+        for (int i = 0; i < (int)entries.size(); i++)
+        {
+            entries[i] = GetAABBEntry(bodies[entries[i].index], entries[i].index);
+        }
+        InsertionSort(entries);
+    }
 
 
     for (int i = 0; i < (int)entries.size(); i++)

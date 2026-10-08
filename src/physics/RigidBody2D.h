@@ -34,5 +34,6 @@ struct RigidBody2D
     void ApplyForce(const Vec2 &force, const Vec2 &impactPoint);
     void IntegrateVelocities(float dt);
     void IntegratePositions(float dt);
-    void UpdateSleep(RigidBody2D &body, float dt);
+    void UpdateSleep(float dt);
+    void WakeUp();
 };

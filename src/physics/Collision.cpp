@@ -21,6 +21,7 @@ Manifold GetCircleManifold(const Circle &a, const Circle &b)
         manifold.penetration = radiusSum - distance;
         manifold.normal = distance > 1e-8f ? delta / distance : Vec2(1, 0);
         manifold.contactPoint[0] = b.center + manifold.normal * b.radius;
+        manifold.contactPenetration[0] = manifold.penetration;
         manifold.contactCount = 1;
     }
 
@@ -125,121 +126,63 @@ float TestAxis(const Vec2 verticesA[4], const Vec2 verticesB[4], const Vec2 &axi
     float overlap = std::min(maxA, maxB) - std::max(minA, minB);
     return overlap;
 }
-Vec2 FindContactPoint(const Vec2 verticesB[4], const RigidBody2D &bodyA, const Box &boxA)
+struct ClipVertex
 {
-    Vec2 contactPoint;
-    float minDist = std::numeric_limits<float>::max();
+    Vec2 v;
+};
 
-    float cosA = std::cos(bodyA.angle);
-    float sinA = std::sin(bodyA.angle);
-    Vec2 axisA1 = Vec2(cosA, sinA);
-    Vec2 axisA2 = Vec2(-sinA, cosA);
+static int ClipSegmentToLine(ClipVertex vOut[2], const ClipVertex vIn[2], const Vec2 &normal, float offset)
+{
+    int numOut = 0;
+    float d0 = DotProduct(normal, vIn[0].v) - offset;
+    float d1 = DotProduct(normal, vIn[1].v) - offset;
 
-    float halfWidth = boxA.width * 0.5f;
-    float halfHeight = boxA.height * 0.5f;
+    if (d0 >= 0.0f) vOut[numOut++] = vIn[0];
+    if (d1 >= 0.0f) vOut[numOut++] = vIn[1];
+
+    if (d0 * d1 < 0.0f)
+    {
+        float alpha = d0 / (d0 - d1);
+        vOut[numOut++].v = vIn[0].v + (vIn[1].v - vIn[0].v) * alpha;
+    }
+    return numOut;
+}
+
+struct FeatureEdge
+{
+    Vec2 v1;
+    Vec2 v2;
+    Vec2 normal;
+};
+
+static FeatureEdge FindBestEdge(const Vec2 vertices[4], const Vec2 &targetDir)
+{
+    FeatureEdge bestEdge;
+    bestEdge.v1 = vertices[0];
+    bestEdge.v2 = vertices[1];
+    bestEdge.normal = Vec2(0, -1);
+    float maxDot = -std::numeric_limits<float>::max();
 
     for (int i = 0; i < 4; ++i)
     {
-        Vec2 d = verticesB[i] - bodyA.position;
-        float projX = DotProduct(d, axisA1);
-        float projY = DotProduct(d, axisA2);
+        Vec2 vA = vertices[i];
+        Vec2 vB = vertices[(i + 1) % 4];
+        Vec2 edge = vB - vA;
+        
+        Vec2 normal = Vec2(edge.y, -edge.x).Normalized();
 
-        if (std::abs(projX) <= halfWidth && std::abs(projY) <= halfHeight)
+        float dot = DotProduct(normal, targetDir);
+        if (dot > maxDot)
         {
-            float depthX = halfWidth - std::abs(projX);
-            float depthY = halfHeight - std::abs(projY);
-            float depth = std::min(depthX, depthY);
-
-            if (depth < minDist)
-            {
-                minDist = depth;
-                contactPoint = verticesB[i];
-            }
+            maxDot = dot;
+            bestEdge.v1 = vA;
+            bestEdge.v2 = vB;
+            bestEdge.normal = normal;
         }
     }
-
-    if (minDist == std::numeric_limits<float>::max())
-    {
-        float minDistSq = std::numeric_limits<float>::max();
-        for (int i = 0; i < 4; ++i)
-        {
-            Vec2 d = verticesB[i] - bodyA.position;
-            float distSq = d.LenSq();
-            if (distSq < minDistSq)
-            {
-                minDistSq = distSq;
-                contactPoint = verticesB[i];
-            }
-        }
-    }
-    return contactPoint;
+    return bestEdge;
 }
-int FindContactPoints(const Vec2 verticlesB[4], const RigidBody2D &bodyA, const Box &boxA, Vec2 contactPoints[2])
-{
-    float cosA = std::cos(bodyA.angle);
-    float sinA = std::sin(bodyA.angle);
-    Vec2 axisA1 = Vec2(cosA, sinA);
-    Vec2 axisA2 = Vec2(-sinA, cosA);
 
-    float halfWidth = boxA.width * 0.5f;
-    float halfHeight = boxA.height * 0.5f;
-
-    int count = 0;
-    for (int i = 0; i < 4 && count < 2; ++i)
-    {
-        Vec2 d = verticlesB[i] - bodyA.position;
-        float projX = DotProduct(d, axisA1);
-        float projY = DotProduct(d, axisA2);
-        if (std::abs(projX) <= halfWidth && std::abs(projY) <= halfHeight)
-        {
-            contactPoints[count++] = verticlesB[i];
-        }
-    }
-    return count;
-}
-void ReduceContactPoints(Manifold &manifold)
-{
-    if (manifold.contactCount <= 1)
-        return;
-
-    const float closestDistSq = 1.0f;
-    for (int i = 0; i < manifold.contactCount; ++i)
-    {
-        for (int j = i + 1; j < manifold.contactCount; ++j)
-        {
-            if ((manifold.contactPoint[i] - manifold.contactPoint[j]).LenSq() < closestDistSq)
-            {
-                manifold.contactPoint[j] = manifold.contactPoint[manifold.contactCount - 1];
-                manifold.contactCount--;
-                j--;
-            }
-        }
-    }
-    if (manifold.contactCount > 2)
-    {
-        int indexA = 0, indexB = 1;
-        float maxDistSq = (manifold.contactPoint[0] - manifold.contactPoint[1]).LenSq();
-        for (int i = 0; i < manifold.contactCount; ++i)
-        {
-            for (int j = i + 1; j < manifold.contactCount; ++j)
-            {
-                float distSq = (manifold.contactPoint[i] - manifold.contactPoint[j]).LenSq();
-                if (distSq > maxDistSq)
-                {
-                    maxDistSq = distSq;
-                    indexA = i;
-                    indexB = j;
-                }
-            }
-        }
-        Vec2 pA = manifold.contactPoint[indexA];
-        Vec2 pB = manifold.contactPoint[indexB];
-
-        manifold.contactPoint[0] = pA;
-        manifold.contactPoint[1] = pB;
-        manifold.contactCount = 2;
-    }
-}
 Manifold OBBvsOBBManifold(const RigidBody2D &bodyA, const Box &boxA, const RigidBody2D &bodyB, const Box &boxB)
 {
     Manifold manifold;
@@ -261,7 +204,7 @@ Manifold OBBvsOBBManifold(const RigidBody2D &bodyA, const Box &boxA, const Rigid
     for (const Vec2 &axis : axes)
     {
         float overlap = TestAxis(verticesA, verticesB, axis);
-        if (overlap <= 0)
+        if (overlap <= 0.0f)
             return manifold;
         if (overlap < minOverlap)
         {
@@ -274,46 +217,91 @@ Manifold OBBvsOBBManifold(const RigidBody2D &bodyA, const Box &boxA, const Rigid
     manifold.penetration = minOverlap;
 
     Vec2 centerAtocenterB = bodyB.position - bodyA.position;
-    if (DotProduct(centerAtocenterB, smallestAxis) > 0)
+    Vec2 normalBA;
+    if (DotProduct(centerAtocenterB, smallestAxis) > 0.0f)
     {
-        manifold.normal = smallestAxis * -1.0f;
+        normalBA = smallestAxis * -1.0f;
     }
     else
     {
-        manifold.normal = smallestAxis;
+        normalBA = smallestAxis;
+    }
+    manifold.normal = normalBA;
+
+    FeatureEdge edgeA = FindBestEdge(verticesA, normalBA * -1.0f);
+    float dotA = DotProduct(edgeA.normal, normalBA * -1.0f);
+
+    FeatureEdge edgeB = FindBestEdge(verticesB, normalBA);
+    float dotB = DotProduct(edgeB.normal, normalBA);
+
+    FeatureEdge refEdge, incEdge;
+    if (dotA >= dotB)
+    {
+        refEdge = edgeA;
+        incEdge = FindBestEdge(verticesB, refEdge.normal * -1.0f);
+    }
+    else
+    {
+        refEdge = edgeB;
+        incEdge = FindBestEdge(verticesA, refEdge.normal * -1.0f);
     }
 
-    Vec2 allPoints[4];
-    int totalCount = 0;
+    Vec2 refTangent = (refEdge.v2 - refEdge.v1).Normalized();
 
-    Vec2 pointsBA[2];
-    int countBA = FindContactPoints(verticesB, bodyA, boxA, pointsBA);
-    for (int i = 0; i < countBA; i++)
-        allPoints[totalCount++] = pointsBA[i];
+    ClipVertex incVertices[2] = {{incEdge.v1}, {incEdge.v2}};
+    ClipVertex clipped1[2];
+    int count1 = ClipSegmentToLine(clipped1, incVertices, refTangent, DotProduct(refTangent, refEdge.v1));
+    if (count1 < 2)
+        return manifold;
 
-    Vec2 pointsAB[2];
-    int countAB = FindContactPoints(verticesA, bodyB, boxB, pointsAB);
-    for (int i = 0; i < countAB && totalCount < 4; i++)
-        allPoints[totalCount++] = pointsAB[i];
+    ClipVertex clipped2[2];
+    int count2 = ClipSegmentToLine(clipped2, clipped1, refTangent * -1.0f, DotProduct(refTangent * -1.0f, refEdge.v2));
+    if (count2 == 0)
+        return manifold;
 
-    if (totalCount == 0)
+    for (int i = 0; i < count2; ++i)
     {
-        manifold.contactPoint[0] = FindContactPoint(verticesB, bodyA, boxA);
+        float sep = DotProduct(refEdge.normal, clipped2[i].v - refEdge.v1);
+        if (sep <= 0.0f)
+        {
+            manifold.contactPoint[manifold.contactCount] = clipped2[i].v;
+            manifold.contactPenetration[manifold.contactCount] = -sep;
+            manifold.contactCount++;
+        }
+    }
+
+    if (manifold.contactCount == 0 && count2 > 0)
+    {
+        int bestIdx = 0;
+        float minSep = DotProduct(refEdge.normal, clipped2[0].v - refEdge.v1);
+        for (int i = 1; i < count2; ++i)
+        {
+            float s = DotProduct(refEdge.normal, clipped2[i].v - refEdge.v1);
+            if (s < minSep)
+            {
+                minSep = s;
+                bestIdx = i;
+            }
+        }
+        manifold.contactPoint[0] = clipped2[bestIdx].v;
+        manifold.contactPenetration[0] = std::max(-minSep, 0.0f);
         manifold.contactCount = 1;
     }
-    else
+
+    if (manifold.contactCount > 0)
     {
-        manifold.contactCount = totalCount;
-        for (int i = 0; i < totalCount; i++)
-            manifold.contactPoint[i] = allPoints[i];
-        ReduceContactPoints(manifold);
+        manifold.penetration = manifold.contactPenetration[0];
+        if (manifold.contactCount == 2)
+            manifold.penetration = std::max(manifold.contactPenetration[0], manifold.contactPenetration[1]);
     }
+
     return manifold;
 }
 Manifold OBBvsCircleManifold(const RigidBody2D &bodyA, const Box &boxA, const RigidBody2D &bodyB, const Circle &circleB)
 {
     Manifold manifold;
     manifold.colliding = false;
+    (void)bodyB;
 
     float cosA = std::cos(bodyA.angle);
     float sinA = std::sin(bodyA.angle);
@@ -353,6 +341,7 @@ Manifold OBBvsCircleManifold(const RigidBody2D &bodyA, const Box &boxA, const Ri
         }
         manifold.colliding = true;
         manifold.contactPoint[0] = closestPoint;
+        manifold.contactPenetration[0] = manifold.penetration;
         manifold.contactCount = 1;
         return manifold;
     }
@@ -364,6 +353,7 @@ Manifold OBBvsCircleManifold(const RigidBody2D &bodyA, const Box &boxA, const Ri
         manifold.penetration = circleB.radius - distance;
         manifold.normal = delta / distance;
         manifold.contactPoint[0] = closestPoint;
+        manifold.contactPenetration[0] = manifold.penetration;
         manifold.contactCount = 1;
     }
     return manifold;

@@ -1,5 +1,6 @@
 #include "PhysicsWorld.h"
 #include <vector>
+#include <algorithm>
 
 PhysicsWorld::PhysicsWorld(const PhysicsSettings &settings) : settings(settings) {}
 
@@ -16,6 +17,7 @@ void PhysicsWorld::AddDistanceConstraint(const DistanceConstraint &constraint)
 
 void PhysicsWorld::Step(float dt)
 {
+    dt = std::min(dt, 0.2f);
     accumulator += dt;
 
     while (accumulator >= settings.fixedTimestep)
@@ -28,7 +30,11 @@ void PhysicsWorld::Step(float dt)
         }
 
         for (auto &body : bodies)
-            body.UpdateSleep(body, settings.fixedTimestep);
+        {
+            body.UpdateSleep(settings.fixedTimestep);
+        }
+
+        PropagateIslandSleep();
         accumulator -= settings.fixedTimestep;
     }
 }
@@ -48,7 +54,7 @@ void PhysicsWorld::StepSubstep(float dt)
     SolveAllConstraints(dt);
     IntegratePositions(dt);
 
-    previousContactConstraints = newContactConstraints;
+    previousContactConstraints = std::move(newContactConstraints);
 }
 
 void PhysicsWorld::ApplyForces()
@@ -74,23 +80,70 @@ void PhysicsWorld::GenerateContacts(float dt)
 
     for (const auto &[i, j] : broadPhasePairs)
     {
+        RigidBody2D &ba = bodies[i];
+        RigidBody2D &bb = bodies[j];
+
+        if (!ba.isAwake && !bb.isAwake)
+            continue;
+
         Manifold manifold = GetManifold(&bodies[i], &bodies[j]);
-        if (manifold.colliding)
-            for (int p = 0; p < manifold.contactCount; p++)
-                newContactConstraints.push_back(GenerateContactConstraint(manifold, bodies, p, i, j, dt));
+        if (!manifold.colliding)
+            continue;
+
+        if (ba.isAwake && ba.invMass != 0.0f && !bb.isAwake && bb.invMass != 0.0f)
+        {
+            bb.WakeUp();
+        }
+        if (!ba.isAwake && ba.invMass != 0.0f && bb.isAwake && bb.invMass != 0.0f)
+        {
+            ba.WakeUp();
+        }
+
+        if (!ba.isAwake && !bb.isAwake)
+            continue;
+
+        for (int p = 0; p < manifold.contactCount; p++)
+            newContactConstraints.push_back(GenerateContactConstraint(manifold, bodies, p, i, j, dt));
     }
 }
 void PhysicsWorld::SolveAllConstraints(float dt)
 {
-    SolveContactConstraints(newContactConstraints, previousContactConstraints, bodies, dt);
-
     for (DistanceConstraint &dc : distanceConstraints)
     {
-        SolveDistanceConstraint(dc, bodies, dt);
+        WarmStartDistanceConstraint(dc, bodies);
+    }
+
+    SolveContactConstraints(newContactConstraints, previousContactConstraints, bodies, dt);
+
+    for (int iter = 0; iter < 10; ++iter)
+    {
+        for (DistanceConstraint &dc : distanceConstraints)
+        {
+            SolveDistanceConstraint(dc, bodies, dt);
+        }
     }
 }
 void PhysicsWorld::IntegratePositions(float dt)
 {
     for (auto &body : bodies)
         body.IntegratePositions(dt);
+}
+void PhysicsWorld::PropagateIslandSleep()
+{
+
+    for (const auto &c : previousContactConstraints)
+    {
+        RigidBody2D &a = bodies[c.bodyAIndex];
+        RigidBody2D &b = bodies[c.bodyBIndex];
+
+        if (a.invMass != 0.0f && b.invMass != 0.0f)
+        {
+            if (a.isAwake && b.isAwake)
+            {
+                float minTimer = std::min(a.sleepTimer, b.sleepTimer);
+                a.sleepTimer = minTimer;
+                b.sleepTimer = minTimer;
+            }
+        }
+    }
 }

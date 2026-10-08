@@ -34,11 +34,11 @@ void SolveDistanceConstraint(DistanceConstraint &constraint, std::vector<RigidBo
     
     if (denominator < 1e-8f)
         return;
-    //Baumgarte stabilization
+
     float biasFactor = 0.2f;
     float bias = (biasFactor / dt) * constraintError;
 
-    float lambda = (-Cdot + bias) / denominator;
+    float lambda = (Cdot + bias) / denominator;
 
     constraint.accumulatedImpulse += lambda;
 

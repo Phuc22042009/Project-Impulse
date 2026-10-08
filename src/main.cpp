@@ -2,7 +2,7 @@
 #include "raylib.h"
 #include <memory>
 #include <algorithm>
-PhysicsWorld world;
+#include <iostream>
 
 enum class SpawnShape
 {
@@ -31,6 +31,8 @@ public:
             ProcessInput();
             world.Step(dt);
 
+
+
             BeginDrawing();
             ClearBackground(RAYWHITE);
 
@@ -48,7 +50,7 @@ public:
             {
                 DrawText("Press [S] to Start 500 Boxes Stress Test", 20, 80, 16, DARKGRAY);
             }
-            
+
             EndDrawing();
         }
 
@@ -108,7 +110,6 @@ private:
             isStressTesting = !isStressTesting;
         }
 
-        // 2. Tự động spawn liên tục 2-3 vật thể mỗi frame cho đến khi đủ 500
         if (isStressTesting && world.GetBodies().size() < (size_t)MAX_STRESS_BODIES)
         {
             for (int i = 0; i < 3 && world.GetBodies().size() < (size_t)MAX_STRESS_BODIES; ++i)
@@ -116,7 +117,7 @@ private:
                 float randomX = (float)GetRandomValue(100, 924);
                 float randomY = (float)GetRandomValue(50, 150);
                 Vec2 randomVel((float)GetRandomValue(-20, 20), (float)GetRandomValue(0, 50));
-                
+
                 SpawnBody(Vec2(randomX, randomY), randomVel);
             }
         }
@@ -174,6 +175,19 @@ private:
             Vec2 mousePos(GetMouseX(), GetMouseY());
             DrawCircleV({dragStart.x, dragStart.y}, 5.0f, RED);
             DrawLineV({dragStart.x, dragStart.y}, {mousePos.x, mousePos.y}, RED);
+        }
+    }
+    void DebugPrintEveryFrame()
+    {
+        static int frameCount = 0;
+        frameCount++;
+
+        std::cout << "=== FRAME " << frameCount << " ===\n";
+
+        const auto &bodies = world.GetBodies();
+        for (size_t i = 0; i < bodies.size(); ++i)
+        {
+            std::cout << "Box #" << i << " | Pos: (" << bodies[i].position.x << ", " << bodies[i].position.y << ")\n";
         }
     }
 };

@@ -29,6 +29,7 @@ private:
     void GenerateContacts(float dt);
     void SolveAllConstraints(float dt);
     void IntegratePositions(float dt);
+    void PropagateIslandSleep();
 
     PhysicsSettings settings;
     float accumulator = 0.0f;
