@@ -31,9 +31,6 @@ FetchContent_MakeAvailable(raylib)
 
 set(CMAKE_WARN_DEPRECATED ON CACHE BOOL "" FORCE)
 
-# ==========================================
-# 3. Thu thập file nguồn dự án
-# ==========================================
 file(GLOB_RECURSE ENGINE_SOURCES CONFIGURE_DEPENDS
     "src/physics/*.cpp"
     "src/math/*.cpp"
@@ -62,4 +59,16 @@ target_include_directories(PhysicsEngineDemo PRIVATE
 target_link_libraries(PhysicsEngineDemo PRIVATE
     PhysicsEngineCore
     raylib
+)
+
+add_executable(bench_broadphase
+    bench/bench_broadphase.cpp
+)
+
+target_include_directories(bench_broadphase PRIVATE
+    src
+)
+
+target_link_libraries(bench_broadphase PRIVATE
+    PhysicsEngineCore
 )
