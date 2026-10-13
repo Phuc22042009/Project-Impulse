@@ -18,6 +18,8 @@ public:
     void Step(float dt);
     
     const std::vector<RigidBody2D> &GetBodies() const;
+    const std::vector<AABBEntry> &GetAABBEntries() const { return entries; }
+    const std::vector<std::pair<int, int>> &GetBroadPhasePairs() const { return broadPhasePairs; }
 
     Vec2 GetGravity();
     void SetGravity(Vec2 gravity);

@@ -35,7 +35,7 @@ void RigidBody2D::IntegrateVelocities(float dt)
     angularVelocity += angularAcceleration * dt;
 
     velocity = velocity * (1.0f / (1.0f + 0.1f * dt));
-    angularVelocity *= 1.0f / (1.0f + 0.5f * dt);
+    angularVelocity *= 1.0f / (1.0f + 1.2f * dt);
 
     force = Vec2();
     torque = 0;
@@ -61,8 +61,8 @@ void RigidBody2D::UpdateSleep(float dt)
     float velocitySq = velocity.LenSq();
     float angularSq  = angularVelocity * angularVelocity;
 
-    const float linearSleepThresholdSq  = 6.0f * 6.0f;
-    const float angularSleepThresholdSq = 0.1f * 0.1f;
+    const float linearSleepThresholdSq  = 8.0f * 8.0f;
+    const float angularSleepThresholdSq = 0.5f * 0.5f;
 
     if (velocitySq < linearSleepThresholdSq && angularSq < angularSleepThresholdSq)
     {
@@ -70,8 +70,8 @@ void RigidBody2D::UpdateSleep(float dt)
 
         if (sleepTimer > 0.1f)
         {
-            if (velocitySq < 4.0f) velocity = Vec2();
-            if (angularSq < 0.05f * 0.05f) angularVelocity = 0;
+            if (velocitySq < 9.0f) velocity = Vec2();
+            if (angularSq < 0.2f * 0.2f) angularVelocity = 0;
         }
 
         if (sleepTimer >= 0.5f)
