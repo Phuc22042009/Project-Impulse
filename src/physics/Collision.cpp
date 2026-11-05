@@ -252,12 +252,22 @@ Manifold OBBvsOBBManifold(const RigidBody2D &bodyA, const Box &boxA, const Rigid
     ClipVertex clipped1[2];
     int count1 = ClipSegmentToLine(clipped1, incVertices, refTangent, DotProduct(refTangent, refEdge.v1));
     if (count1 < 2)
+    {
+        manifold.contactPoint[0] = (incEdge.v1 + incEdge.v2) * 0.5f;
+        manifold.contactPenetration[0] = manifold.penetration;
+        manifold.contactCount = 1;
         return manifold;
+    }
 
     ClipVertex clipped2[2];
     int count2 = ClipSegmentToLine(clipped2, clipped1, refTangent * -1.0f, DotProduct(refTangent * -1.0f, refEdge.v2));
     if (count2 == 0)
+    {
+        manifold.contactPoint[0] = (clipped1[0].v + clipped1[1].v) * 0.5f;
+        manifold.contactPenetration[0] = manifold.penetration;
+        manifold.contactCount = 1;
         return manifold;
+    }
 
     for (int i = 0; i < count2; ++i)
     {
@@ -285,6 +295,13 @@ Manifold OBBvsOBBManifold(const RigidBody2D &bodyA, const Box &boxA, const Rigid
         }
         manifold.contactPoint[0] = clipped2[bestIdx].v;
         manifold.contactPenetration[0] = std::max(-minSep, 0.0f);
+        manifold.contactCount = 1;
+    }
+
+    if (manifold.contactCount == 0)
+    {
+        manifold.contactPoint[0] = (incEdge.v1 + incEdge.v2) * 0.5f;
+        manifold.contactPenetration[0] = manifold.penetration;
         manifold.contactCount = 1;
     }
 

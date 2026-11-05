@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.20)
 
 project(PhysicsEngine
     VERSION 1.0.0
-    DESCRIPTION "2D Rigid Body Physics Engine with Raylib & ImGui"
+    DESCRIPTION "2D Rigid Body Physics Engine"
     LANGUAGES CXX C
 )
 

@@ -22,21 +22,23 @@ A lightweight, deterministic 2D rigid body physics engine written from scratch i
 
 ![Broad-Phase Debug View](assets/Broadphase.gif)
 
+---
+
 ## Key Features
 
 ### 1. Continuous Physics Pipeline & Integration
-- **Fixed Timestep Simulation:** Decoupled physics stepping ($\Delta t = 1/60\text{ s}$) from variable rendering frame rates to eliminate numerical drift and tunneling.
-- **Semi-Implicit Euler Integrator:** Symplectic velocity-first integration ensuring energy and phase space volume preservation over long simulation runs.
-- **2D Rigid Body Dynamics:** Complete linear and angular momentum modeling with exact moment of inertia tensors for oriented bounding boxes (OBBs) and circles.
+- **Fixed Timestep Simulation:** Decoupled physics stepping ($\Delta t = 1/60\text{ s}$) from variable rendering frame rates via an accumulator loop, significantly mitigating numerical drift and integration divergence compared to variable $\Delta t$.
+- **Semi-Implicit Euler Integrator:** Symplectic velocity-first integration preserving phase space volume, combined with tuned velocity damping factors to ensure stable settling without energy drift during sustained stacking.
+- **2D Rigid Body Dynamics:** Full linear and angular momentum formulation with exact moment of inertia tensors for oriented bounding boxes (OBBs) and circles.
 
 ### 2. Broad-Phase Collision Detection
-- **1D Sweep-and-Prune (SAP):** Projects bounding intervals onto the primary variance axis (X-axis) with early-exit pruning.
-- **Temporal Coherence Exploitation:** Utilizes an in-place persistent body array paired with insertion sort, achieving near-linear $O(N)$ sorting across consecutive frames.
-- **Headless Benchmark Suite:** Validated performance gains of up to **$14.4\times$** compared to brute-force $O(N^2)$ collision testing.
+- **1D Sweep-and-Prune (SAP):** Projects bounding intervals onto the persistent X-axis with early-exit pruning.
+- **Temporal Coherence Exploitation:** Utilizes an in-place persistent body array paired with insertion sort, achieving near-linear $O(N)$ sorting across consecutive frames under uniform distributions.
+- **Headless Benchmark Suite:** Validated performance gains of up to **$14.4\times \sim 67\times$** compared to brute-force $O(N^2)$ baseline testing.
 
 ### 3. Narrow-Phase Collision Detection & Manifold Generation
-- **Optimized Separating Axis Theorem (SAT):** Evaluates minimal penetration axes for arbitrary OBB orientations, optimized to test only 4 candidate edge normals per box pair instead of 8.
-- **Sutherland-Hodgman Polygon Clipping:** Classifies reference and incident edges to generate stable, multi-point contact manifolds, preventing stack toppling and balancing artifacts.
+- **Optimized Separating Axis Theorem (SAT):** Evaluates minimal penetration axes for arbitrary OBB orientations, testing 4 candidate edge normals per box pair.
+- **Sutherland-Hodgman Polygon Clipping:** Classifies reference and incident edges to generate stable, 2-point contact manifolds with robust single-point geometric fallbacks, preventing stack toppling.
 
 ### 4. Constraint & Impulse Solver
 - **Projected Gauss-Seidel (PGS) Iterative Solver:** Sequential impulse resolution converging under 10 iterations per timestep.
@@ -47,24 +49,39 @@ A lightweight, deterministic 2D rigid body physics engine written from scratch i
 - **Distance Constraints:** Bilateral spring-damper distance joints for ropes, chains, and suspension structures.
 
 ### 5. Sleep & Deactivation System
-- **Kinetic Energy Monitoring:** Tracks linear and angular kinetic energy with moving average counters ($E_k < \text{threshold}$ over $0.5\text{ s}$).
+- **Kinetic Energy Monitoring:** Tracks linear and angular kinetic energy ($E_k < \text{threshold}$ over $0.5\text{ s}$).
 - **Island Sleep & Wake-up Propagation:** Automatically deactivates resting bodies from CPU computation while ensuring transitive wake-up upon external impacts.
 
 ---
 
 ## Broad-Phase Benchmark Results
 
-A standalone headless benchmark (`bench/bench_broadphase.cpp`) evaluated Sweep-and-Prune against an $O(N^2)$ brute-force baseline across varying object counts with constant world density:
+A standalone headless benchmark (`bench/bench_broadphase.cpp`) evaluated Sweep-and-Prune against an $O(N^2)$ brute-force baseline across varying object counts.
 
-| Object Count ($N$) | Brute-Force ($O(N^2)$) | Sweep-and-Prune | Speedup | Candidate Pairs |
+### Scenario A: Uniform Constant-Density Arena
+Spatial density is held constant across all $N$ by scaling world area proportionally ($\text{Area} = N \times 16,000\text{ px}^2$). Objects have randomized dimensions ($R \in [8, 24]\text{ px}$), velocities, and bounce off arena boundaries.
+
+| Object Count ($N$) | Brute-Force ($O(N^2)$) | Sweep-and-Prune (InsertionSort) | Sweep-and-Prune (std::sort) | Speedup vs. Brute-Force | Average Candidate Pairs |
+| :---: | :---: | :---: | :---: | :---: | :---: |
+| **100** | 0.037 ms | **0.007 ms** | 0.009 ms | **5.4x** | 18.7 |
+| **500** | 0.647 ms | **0.041 ms** | 0.056 ms | **15.8x** | 90.7 |
+| **1,000** | 2.194 ms | **0.087 ms** | 0.120 ms | **25.4x** | 173.8 |
+| **2,000** | 8.272 ms | **0.237 ms** | 0.328 ms | **34.9x** | 345.9 |
+| **5,000** | 48.077 ms | **0.718 ms** | 0.882 ms | **67.0x** | 869.7 |
+
+*Measured across 600 frames per run, 3 repeated runs, 100 warm-up frames discarded. GCC 14.2.0 (-O3 Release).*
+
+### Scenario B: Degenerate "Worst-Case" Column
+When all objects are constrained inside a narrow vertical strip ($X \in [10, 50]\text{ px}$), their intervals continuously overlap along the sorted axis ($X$), preventing early-exit pruning:
+
+| Object Count ($N$) | Brute-Force ($O(N^2)$) | Sweep-and-Prune | Speedup vs. Brute-Force | Average Candidate Pairs |
 | :---: | :---: | :---: | :---: | :---: |
-| **100** | 0.012 ms | 0.015 ms | 0.80x | 12.4 |
-| **500** | 0.320 ms | 0.082 ms | **3.90x** | 65.1 |
-| **1,000** | 1.310 ms | 0.175 ms | **7.49x** | 131.8 |
-| **2,000** | 5.380 ms | 0.490 ms | **10.98x** | 268.4 |
-| **5,000** | 34.120 ms | 2.370 ms | **14.40x** | 682.0 |
+| **100** | **0.022 ms** | 0.027 ms | **0.80x** *(SAP is slower)* | 99.9 |
+| **500** | 0.608 ms | 0.521 ms | **1.17x** | 509.6 |
+| **1,000** | 2.385 ms | 1.976 ms | **1.21x** | 1,008.8 |
+| **2,000** | 9.302 ms | 7.730 ms | **1.20x** | 2,003.3 |
 
-*Compiled with GCC 14.2.0 (`-O2` Release mode) on Windows 10 Pro.*
+**Engineering Insight:** In degenerate collinear distributions, 1D Sweep-and-Prune collapses to $O(N^2)$ complexity due to sorting overhead without the benefit of interval pruning. This highlights the architectural motivation for multi-axis SAP or dynamic bounding volume hierarchies (BVH / Dynamic AABB Trees) in production multi-scenario physics engines.
 
 ---
 
@@ -83,6 +100,15 @@ The engine includes an interactive testbed featuring multiple pre-built physical
 | **`[R]`** | Reset / reload the active scene |
 | **Mouse Left Drag** | Aim and release to launch projectiles with velocity |
 | **Mouse Wheel** | Adjust projectile size |
+
+---
+
+## Known Limitations & Trade-offs
+
+1. **Discrete Collision Detection:** The engine utilizes discrete collision testing at each substep. Fast-moving small projectiles exceeding their bounding radius within $\Delta t$ can exhibit tunneling unless substeps are increased.
+2. **Fixed 1D SAP Axis:** Broad-phase interval sorting is fixed to the X-axis. Scenarios with high vertical density and narrow horizontal spread experience reduced pruning efficiency.
+3. **Distance Constraints:** Joints are formulated between rigid body centers of mass without rotational torque transmission.
+4. **Warm-Starting Contact Matching:** Contact points are matched across frames using Euclidean distance heuristics ($r < 4\text{ px}$) rather than topological feature IDs.
 
 ---
 
@@ -114,15 +140,15 @@ The engine includes an interactive testbed featuring multiple pre-built physical
 
 ### Prerequisites
 - C++17 compatible compiler (GCC, Clang, or MSVC)
-- CMake 3.16+
+- CMake 3.20+
 - Git
 
 ### Build Instructions
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/Phuc22042009/2D-Physics-Engine.git
-cd 2D-Physics-Engine
+git clone https://github.com/Phuc22042009/Project-Impulse.git
+cd Project-Impulse
 
 # 2. Configure build with CMake
 cmake -B build -DCMAKE_BUILD_TYPE=Release
@@ -135,22 +161,22 @@ cmake --build build --config Release
 
 - **Interactive Demo:**
   ```bash
-  ./build/bin/PhysicsEngineDemo
-  # Or on Windows:
   .\build\bin\PhysicsEngineDemo.exe
   ```
 
 - **Headless Benchmark:**
   ```bash
-  ./build/bin/bench_broadphase
-  # Or on Windows:
   .\build\bin\bench_broadphase.exe
   ```
 
 ---
 
-## References
+## Author & Academic References
 
+### Author
+- **Vu Cong Thien Phuc** – Core architecture, mathematical modeling, and C++ implementation.
+
+### Theoretical Foundations
 - **Erin Catto** – *Iterative Dynamics with Temporal Coherence* (GDC 2005), *Fast and Simple Physics using Sequential Impulses* (GDC 2006).
 - **Allen Chou** – [*Game Physics: Contact Constraints & Resolution*](https://allenchou.net/2013/12/game-physics-resolution-contact-constraints/).
 - **Nilson Souto (Toptal)** – [*Video Game Physics Tutorial - Part III: Constrained Rigid Body Simulation*](https://www.toptal.com/developers/game/video-game-physics-part-iii-constrained-rigid-body-simulation).
