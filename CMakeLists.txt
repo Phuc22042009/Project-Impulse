@@ -72,3 +72,25 @@ target_include_directories(bench_broadphase PRIVATE
 target_link_libraries(bench_broadphase PRIVATE
     PhysicsEngineCore
 )
+
+enable_testing()
+
+add_executable(physics_tests
+    test/testphysics.cpp
+)
+
+target_include_directories(physics_tests PRIVATE
+    src
+)
+
+target_link_libraries(physics_tests PRIVATE
+    PhysicsEngineCore
+)
+
+if(MSVC)
+    target_compile_options(physics_tests PRIVATE /W4)
+else()
+    target_compile_options(physics_tests PRIVATE -Wall -Wextra)
+endif()
+
+add_test(NAME PhysicsUnitTests COMMAND physics_tests)

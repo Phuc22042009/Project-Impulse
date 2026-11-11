@@ -128,9 +128,12 @@ The engine includes an interactive testbed featuring multiple pre-built physical
 │   └── main.cpp
 ├── bench/
 │   └── bench_broadphase.cpp
+├── test/
+│   └── testphysics.cpp
 ├── results/
 │   ├── BENCHMARK.md
 │   └── benchmark_results.csv
+├── run_tests.bat
 └── CMakeLists.txt
 ```
 
@@ -168,6 +171,12 @@ cmake --build build --config Release
   ```bash
   .\build\bin\bench_broadphase.exe
   ```
+
+- **Unit Tests (16 tests covering math, broad-phase, SAT/clipping, and dynamics):**
+  ```bash
+  ctest --test-dir build --output-on-failure
+  ```
+  Or run `.\build\bin\physics_tests.exe` directly (`run_tests.bat` on Windows).
 
 ---
 
