@@ -27,14 +27,14 @@ A lightweight, deterministic 2D rigid body physics engine written from scratch i
 ## Key Features
 
 ### 1. Continuous Physics Pipeline & Integration
-- **Fixed Timestep Simulation:** Decoupled physics stepping ($\Delta t = 1/60\text{ s}$) from variable rendering frame rates via an accumulator loop, significantly mitigating numerical drift and integration divergence compared to variable $\Delta t$.
+- **Fixed Timestep Simulation:** Decoupled physics stepping ($`\Delta t = 1/60\text{ s}`$) from variable rendering frame rates via an accumulator loop, significantly mitigating numerical drift and integration divergence compared to variable $`\Delta t`$.
 - **Semi-Implicit Euler Integrator:** Symplectic velocity-first integration preserving phase space volume, combined with tuned velocity damping factors to ensure stable settling without energy drift during sustained stacking.
 - **2D Rigid Body Dynamics:** Full linear and angular momentum formulation with exact moment of inertia tensors for oriented bounding boxes (OBBs) and circles.
 
 ### 2. Broad-Phase Collision Detection
 - **1D Sweep-and-Prune (SAP):** Projects bounding intervals onto the persistent X-axis with early-exit pruning.
-- **Temporal Coherence Exploitation:** Utilizes an in-place persistent body array paired with insertion sort, achieving near-linear $O(N)$ sorting across consecutive frames under uniform distributions.
-- **Headless Benchmark Suite:** Validated performance gains of up to **$14.4\times \sim 67\times$** compared to brute-force $O(N^2)$ baseline testing.
+- **Temporal Coherence Exploitation:** Utilizes an in-place persistent body array paired with insertion sort, achieving near-linear $`O(N)`$ sorting across consecutive frames under uniform distributions.
+- **Headless Benchmark Suite:** Validated performance gains of up to $`\mathbf{14.4\times \sim 67\times}`$ compared to brute-force $`O(N^2)`$ baseline testing.
 
 ### 3. Narrow-Phase Collision Detection & Manifold Generation
 - **Optimized Separating Axis Theorem (SAT):** Evaluates minimal penetration axes for arbitrary OBB orientations, testing 4 candidate edge normals per box pair.
@@ -43,25 +43,25 @@ A lightweight, deterministic 2D rigid body physics engine written from scratch i
 ### 4. Constraint & Impulse Solver
 - **Projected Gauss-Seidel (PGS) Iterative Solver:** Sequential impulse resolution converging under 10 iterations per timestep.
 - **Split Impulse (Pseudo-Velocities):** Separates position correction from linear momentum, resolving interpenetration without injecting artificial kinetic energy or inducing stack explosions.
-- **Coulomb Friction Cone:** Enforces tangent friction limits proportional to normal reaction impulses ($|\lambda_t| \le \mu \lambda_n$).
-- **Restitution Threshold:** Velocity threshold clamp ($|v_n| < 30\text{ px/s} \implies e = 0$) preventing persistent micro-jittering under gravity.
+- **Coulomb Friction Cone:** Enforces tangent friction limits proportional to normal reaction impulses ($`|\lambda_t| \le \mu \lambda_n`$).
+- **Restitution Threshold:** Velocity threshold clamp ($`|v_n| < 30\text{ px/s} \implies e = 0`$) preventing persistent micro-jittering under gravity.
 - **Warm Starting:** Re-applies accumulated impulses across frames for matched contacts, accelerating solver convergence.
 - **Distance Constraints:** Bilateral spring-damper distance joints for ropes, chains, and suspension structures.
 
 ### 5. Sleep & Deactivation System
-- **Kinetic Energy Monitoring:** Tracks linear and angular kinetic energy ($E_k < \text{threshold}$ over $0.5\text{ s}$).
+- **Kinetic Energy Monitoring:** Tracks linear and angular kinetic energy ($`E_k < \text{threshold}`$ over $`0.5\text{ s}`$).
 - **Island Sleep & Wake-up Propagation:** Automatically deactivates resting bodies from CPU computation while ensuring transitive wake-up upon external impacts.
 
 ---
 
 ## Broad-Phase Benchmark Results
 
-A standalone headless benchmark (`bench/bench_broadphase.cpp`) evaluated Sweep-and-Prune against an $O(N^2)$ brute-force baseline across varying object counts.
+A standalone headless benchmark (`bench/bench_broadphase.cpp`) evaluated Sweep-and-Prune against an $`O(N^2)`$ brute-force baseline across varying object counts.
 
 ### Scenario A: Uniform Constant-Density Arena
-Spatial density is held constant across all $N$ by scaling world area proportionally ($\text{Area} = N \times 16,000\text{ px}^2$). Objects have randomized dimensions ($R \in [8, 24]\text{ px}$), velocities, and bounce off arena boundaries.
+Spatial density is held constant across all $`N`$ by scaling world area proportionally ($`\text{Area} = N \times 16,000\text{ px}^2`$). Objects have randomized dimensions ($`R \in [8, 24]\text{ px}`$), velocities, and bounce off arena boundaries.
 
-| Object Count ($N$) | Brute-Force ($O(N^2)$) | Sweep-and-Prune (InsertionSort) | Sweep-and-Prune (std::sort) | Speedup vs. Brute-Force | Average Candidate Pairs |
+| Object Count ($`N`$) | Brute-Force ($`O(N^2)`$) | Sweep-and-Prune (InsertionSort) | Sweep-and-Prune (std::sort) | Speedup vs. Brute-Force | Average Candidate Pairs |
 | :---: | :---: | :---: | :---: | :---: | :---: |
 | **100** | 0.037 ms | **0.007 ms** | 0.009 ms | **5.4x** | 18.7 |
 | **500** | 0.647 ms | **0.041 ms** | 0.056 ms | **15.8x** | 90.7 |
@@ -72,16 +72,16 @@ Spatial density is held constant across all $N$ by scaling world area proportion
 *Measured across 600 frames per run, 3 repeated runs, 100 warm-up frames discarded. GCC 14.2.0 (-O3 Release).*
 
 ### Scenario B: Degenerate "Worst-Case" Column
-When all objects are constrained inside a narrow vertical strip ($X \in [10, 50]\text{ px}$), their intervals continuously overlap along the sorted axis ($X$), preventing early-exit pruning:
+When all objects are constrained inside a narrow vertical strip ($`X \in [10, 50]\text{ px}`$), their intervals continuously overlap along the sorted axis ($`X`$), preventing early-exit pruning:
 
-| Object Count ($N$) | Brute-Force ($O(N^2)$) | Sweep-and-Prune | Speedup vs. Brute-Force | Average Candidate Pairs |
+| Object Count ($`N`$) | Brute-Force ($`O(N^2)`$) | Sweep-and-Prune | Speedup vs. Brute-Force | Average Candidate Pairs |
 | :---: | :---: | :---: | :---: | :---: |
 | **100** | **0.022 ms** | 0.027 ms | **0.80x** *(SAP is slower)* | 99.9 |
 | **500** | 0.608 ms | 0.521 ms | **1.17x** | 509.6 |
 | **1,000** | 2.385 ms | 1.976 ms | **1.21x** | 1,008.8 |
 | **2,000** | 9.302 ms | 7.730 ms | **1.20x** | 2,003.3 |
 
-**Engineering Insight:** In degenerate collinear distributions, 1D Sweep-and-Prune collapses to $O(N^2)$ complexity due to sorting overhead without the benefit of interval pruning. This highlights the architectural motivation for multi-axis SAP or dynamic bounding volume hierarchies (BVH / Dynamic AABB Trees) in production multi-scenario physics engines.
+**Engineering Insight:** In degenerate collinear distributions, 1D Sweep-and-Prune collapses to $`O(N^2)`$ complexity due to sorting overhead without the benefit of interval pruning. This highlights the architectural motivation for multi-axis SAP or dynamic bounding volume hierarchies (BVH / Dynamic AABB Trees) in production multi-scenario physics engines.
 
 ---
 
@@ -105,10 +105,10 @@ The engine includes an interactive testbed featuring multiple pre-built physical
 
 ## Known Limitations & Trade-offs
 
-1. **Discrete Collision Detection:** The engine utilizes discrete collision testing at each substep. Fast-moving small projectiles exceeding their bounding radius within $\Delta t$ can exhibit tunneling unless substeps are increased.
+1. **Discrete Collision Detection:** The engine utilizes discrete collision testing at each substep. Fast-moving small projectiles exceeding their bounding radius within $`\Delta t`$ can exhibit tunneling unless substeps are increased.
 2. **Fixed 1D SAP Axis:** Broad-phase interval sorting is fixed to the X-axis. Scenarios with high vertical density and narrow horizontal spread experience reduced pruning efficiency.
 3. **Distance Constraints:** Joints are formulated between rigid body centers of mass without rotational torque transmission.
-4. **Warm-Starting Contact Matching:** Contact points are matched across frames using Euclidean distance heuristics ($r < 4\text{ px}$) rather than topological feature IDs.
+4. **Warm-Starting Contact Matching:** Contact points are matched across frames using Euclidean distance heuristics ($`r < 4\text{ px}`$) rather than topological feature IDs.
 
 ---
 
